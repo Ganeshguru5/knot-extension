@@ -1,0 +1,583 @@
+/* Palette mirrors knot's globals.css (neutral oklch, hue 265). */
+:root {
+  color-scheme: light;
+  --bg: oklch(1 0 0);
+  --surface: oklch(0.985 0.002 265);
+  --fg: oklch(0.2 0.012 265);
+  --muted: oklch(0.52 0.012 265);
+  --border: oklch(0.91 0.004 265);
+  --input: oklch(0.88 0.006 265);
+  --primary: oklch(0.24 0.014 265);
+  --primary-fg: oklch(0.985 0 0);
+  --accent: oklch(0.955 0.004 265);
+  --ring: oklch(0.6 0.02 265 / 0.35);
+  --danger: oklch(0.55 0.2 27);
+  --danger-bg: oklch(0.97 0.02 27);
+  --warn: oklch(0.5 0.12 70);
+  --warn-bg: oklch(0.975 0.035 85);
+  --ok: oklch(0.48 0.12 155);
+  --ok-bg: oklch(0.97 0.03 155);
+  --info-bg: oklch(0.97 0.012 250);
+  --missing: oklch(0.72 0.13 70);
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: oklch(0.17 0.008 265);
+    --surface: oklch(0.2 0.009 265);
+    --fg: oklch(0.96 0.004 265);
+    --muted: oklch(0.68 0.01 265);
+    --border: oklch(0.28 0.01 265);
+    --input: oklch(0.32 0.011 265);
+    --primary: oklch(0.94 0.004 265);
+    --primary-fg: oklch(0.2 0.012 265);
+    --accent: oklch(0.255 0.011 265);
+    --ring: oklch(0.7 0.02 265 / 0.35);
+    --danger: oklch(0.7 0.17 25);
+    --danger-bg: oklch(0.26 0.05 25);
+    --warn: oklch(0.8 0.12 80);
+    --warn-bg: oklch(0.27 0.04 80);
+    --ok: oklch(0.75 0.13 155);
+    --ok-bg: oklch(0.25 0.04 155);
+    --info-bg: oklch(0.24 0.02 250);
+    --missing: oklch(0.72 0.13 75);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  width: 400px;
+  min-height: 240px;
+  max-height: 600px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.45 "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-y: auto;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+code,
+.mono {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.center-text {
+  text-align: center;
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 7px;
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.brand-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.brand-name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.chip {
+  overflow: hidden;
+  max-width: 180px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn,
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-btn:hover {
+  background: var(--accent);
+  color: var(--fg);
+}
+
+.avatar {
+  border-radius: 999px;
+  border-color: var(--border);
+  background: var(--accent);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.menu {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  width: 220px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.12);
+}
+
+.menu-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--accent);
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+/* ---------- views ---------- */
+
+.view {
+  padding: 14px;
+}
+
+.view.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  text-align: center;
+}
+
+.intro {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+}
+
+.stack.narrow {
+  width: 100%;
+  max-width: 260px;
+  margin-top: 6px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row.end {
+  justify-content: flex-end;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ---------- form ---------- */
+
+.field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.label em {
+  color: var(--danger);
+  font-style: normal;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.hint.ok {
+  color: var(--ok);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--input);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+input,
+select {
+  height: 32px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--muted);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Fields the page didn't provide: ask the user. */
+.field.missing input,
+.field.missing select {
+  border-color: var(--missing);
+  border-style: dashed;
+}
+
+.field.missing .label::after {
+  content: "Not found on page";
+  margin-left: 6px;
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.field.invalid input,
+.field.invalid select {
+  border-color: var(--danger);
+  border-style: solid;
+}
+
+.group {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.group legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.disclosure summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 0 6px;
+}
+
+/* ---------- segmented tabs ---------- */
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: 9px;
+  background: var(--accent);
+}
+
+.segmented button {
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmented button[aria-selected="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.08);
+}
+
+/* ---------- alerts ---------- */
+
+.alert {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 7px;
+  background: var(--info-bg);
+  font-size: 12px;
+}
+
+.stack .alert,
+.group .alert {
+  margin-bottom: 0;
+}
+
+.alert.error {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.alert.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.alert.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.alert a,
+.alert .link {
+  color: inherit;
+  font-weight: 600;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--input);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--accent);
+}
+
+.btn.primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+
+.btn.primary:hover {
+  opacity: 0.9;
+}
+
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.btn.ghost:hover {
+  background: var(--accent);
+  color: var(--fg);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.actions {
+  position: sticky;
+  bottom: -14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px -14px -14px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ---------- misc ---------- */
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--fg);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.btn .spinner {
+  width: 14px;
+  height: 14px;
+  border-color: color-mix(in oklch, currentColor 30%, transparent);
+  border-top-color: currentColor;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.success-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.success-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>knot</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M5 12a7 7 0 0 1 7-7h0a7 7 0 0 1 7 7v0a7 7 0 0 1-7 7" stroke-linecap="round" />
+            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
+        <span class="brand-name">knot</span>
+        <span id="site-chip" class="chip" hidden></span>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-settings" class="icon-btn" type="button" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
+        <button id="btn-account" class="avatar" type="button" hidden title="Account"></button>
+      </div>
+      <div id="account-menu" class="menu" hidden>
+        <div class="menu-head">
+          <p id="account-name" class="strong"></p>
+          <p id="account-email" class="muted"></p>
+        </div>
+        <button id="btn-open-app" class="menu-item" type="button">Open knot</button>
+        <button id="btn-signout" class="menu-item danger" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <!-- Loading -->
+    <section id="view-loading" class="view center">
+      <span class="spinner" aria-hidden="true"></span>
+      <p class="muted">Reading this page…</p>
+    </section>
+
+    <!-- Sign in -->
+    <section id="view-login" class="view" hidden>
+      <div class="intro">
+        <h1>Sign in to knot</h1>
+        <p class="muted">Use your knot account to save jobs and referrals from any page.</p>
+      </div>
+      <form id="login-form" class="stack" novalidate>
+        <label class="field">
+          <span class="label">Email</span>
+          <input id="login-email" type="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span class="label">Password</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+        <p id="login-error" class="alert error" hidden></p>
+        <button id="login-submit" class="btn primary block" type="submit">Sign in</button>
+        <p class="muted small center-text">
+          Server: <span id="login-server" class="mono"></span> ·
+          <button id="login-change-server" class="link" type="button">Change</button>
+        </p>
+      </form>
+    </section>
+
+    <!-- Settings -->
+    <section id="view-settings" class="view" hidden>
+      <div class="intro">
+        <h1>Settings</h1>
+        <p class="muted">Where your knot server and web app run.</p>
+      </div>
+      <form id="settings-form" class="stack" novalidate>
+        <label class="field">
+          <span class="label">API URL</span>
+          <input id="settings-api" type="url" placeholder="http://localhost:3001" required />
+          <span class="hint">knot-server — <code>npm run dev</code> locally, or the deployed <code>ApiUrl</code>.</span>
+        </label>
+        <label class="field">
+          <span class="label">App URL</span>
+          <input id="settings-app" type="url" placeholder="http://localhost:3000" required />
+          <span class="hint">The knot web app, for “Open in knot” links.</span>
+        </label>
+        <p id="settings-error" class="alert error" hidden></p>
+        <div class="row end">
+          <button id="settings-cancel" class="btn ghost" type="button">Cancel</button>
+          <button class="btn primary" type="submit">Save</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Capture -->
+    <section id="view-main" class="view" hidden>
+      <div class="segmented" role="tablist">
+        <button id="tab-job" role="tab" type="button" aria-selected="true">Job application</button>
+        <button id="tab-referral" role="tab" type="button" aria-selected="false">Referral</button>
+      </div>
+
+      <p id="detect-banner" class="alert" hidden></p>
+      <p id="main-error" class="alert error" hidden></p>
+
+      <!-- Job application -->
+      <form id="job-form" class="stack" novalidate>
+        <div id="job-duplicate" class="alert warn" hidden></div>
+
+        <label class="field">
+          <span class="label">Role <em>*</em></span>
+          <input name="role" maxlength="200" required />
+        </label>
+        <label class="field">
+          <span class="label">Company <em>*</em></span>
+          <input name="company" list="company-options" maxlength="200" autocomplete="off" required />
+          <span class="hint" data-hint-for="company"></span>
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span class="label">Location</span>
+            <input name="location" maxlength="200" />
+          </label>
+          <label class="field">
+            <span class="label">Work mode <em>*</em></span>
+            <select name="workMode" required></select>
+          </label>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="label">Status</span>
+            <select name="status"></select>
+          </label>
+          <label class="field">
+            <span class="label">Priority</span>
+            <select name="priority"></select>
+          </label>
+        </div>
+        <label class="field">
+          <span class="label">Salary</span>
+          <input name="salary" maxlength="200" placeholder="e.g. ₹30–40 LPA" />
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span class="label">Job ID</span>
+            <input name="jobId" maxlength="200" />
+          </label>
+          <label class="field">
+            <span class="label">Source</span>
+            <input name="source" maxlength="200" />
+          </label>
+        </div>
+        <label class="field">
+          <span class="label">Job URL</span>
+          <input name="jobUrl" type="url" maxlength="2048" />
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span class="label">Resume used</span>
+            <select name="resumeId"></select>
+          </label>
+          <label class="field">
+            <span class="label">Follow up on</span>
+            <input name="nextFollowUp" type="date" />
+          </label>
+        </div>
+        <label class="field">
+          <span class="label">Notes</span>
+          <textarea name="notes" rows="2" maxlength="20000"></textarea>
+        </label>
+        <details class="disclosure">
+          <summary>Job description <span data-count-for="description" class="muted"></span></summary>
+          <textarea name="description" rows="7" maxlength="20000"></textarea>
+        </details>
+      </form>
+
+      <!-- Referral -->
+      <form id="referral-form" class="stack" novalidate hidden>
+        <fieldset class="group">
+          <legend>Person</legend>
+          <div id="contact-existing" class="alert ok" hidden></div>
+          <label class="field">
+            <span class="label">Name <em>*</em></span>
+            <input name="name" list="contact-options" maxlength="200" autocomplete="off" required />
+          </label>
+          <label class="field">
+            <span class="label">Headline / role</span>
+            <input name="headline" maxlength="200" />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Relationship</span>
+              <select name="relationship"></select>
+            </label>
+            <label class="field">
+              <span class="label">Email</span>
+              <input name="email" type="email" maxlength="254" />
+            </label>
+          </div>
+          <label class="field">
+            <span class="label">LinkedIn</span>
+            <input name="linkedin" type="url" maxlength="2048" />
+          </label>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Referral for</legend>
+          <label class="field">
+            <span class="label">Saved application</span>
+            <select name="applicationId"></select>
+            <span class="hint">Pick one to fill the role, company and job link.</span>
+          </label>
+          <label class="field">
+            <span class="label">Company <em>*</em></span>
+            <input name="company" list="company-options" maxlength="200" autocomplete="off" required />
+            <span class="hint" data-hint-for="company"></span>
+          </label>
+          <label class="field">
+            <span class="label">Role <em>*</em></span>
+            <input name="role" maxlength="200" required />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Job ID</span>
+              <input name="jobId" maxlength="200" />
+            </label>
+            <label class="field">
+              <span class="label">Status</span>
+              <select name="status"></select>
+            </label>
+          </div>
+          <label class="field">
+            <span class="label">Job URL</span>
+            <input name="jobUrl" type="url" maxlength="2048" />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Requested on</span>
+              <input name="requestDate" type="date" />
+            </label>
+            <label class="field">
+              <span class="label">Follow up on</span>
+              <input name="followUpDate" type="date" />
+            </label>
+          </div>
+          <label class="field">
+            <span class="label">Notes</span>
+            <textarea name="notes" rows="2" maxlength="20000"></textarea>
+          </label>
+        </fieldset>
+      </form>
+
+      <datalist id="company-options"></datalist>
+      <datalist id="contact-options"></datalist>
+
+      <footer class="actions">
+        <button id="btn-reread" class="btn ghost" type="button" title="Read the page again">Re-read page</button>
+        <button id="btn-save" class="btn primary" type="button">Save application</button>
+      </footer>
+    </section>
+
+    <!-- Saved -->
+    <section id="view-success" class="view center" hidden>
+      <span class="success-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+      </span>
+      <h1 id="success-title"></h1>
+      <p id="success-detail" class="muted"></p>
+      <div class="stack narrow">
+        <button id="success-open" class="btn primary block" type="button">Open in knot</button>
+        <button id="success-referral" class="btn block" type="button" hidden>Add a referral for this job</button>
+        <button id="success-again" class="btn ghost block" type="button">Add another</button>
+      </div>
+    </section>
+  </body>
+</html>
