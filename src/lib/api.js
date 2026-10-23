@@ -90,18 +90,42 @@ async function send(method, path, body, { token, apiUrl } = {}) {
 
 const enc = encodeURIComponent
 
+/** Refresh at most daily; tokens last a year, so regular use never signs you out. */
+const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
+
+function toSession(data, apiUrl) {
+  return {
+    token: data.token,
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + (data.expiresIn ?? 43200) * 1000,
+    user: data.user,
+    apiUrl,
+  }
+}
+
 export const api = {
   /** Signs in and stores the session. */
   async login(apiUrl, email, password) {
-    const data = await send("POST", "/auth/login", { email, password }, { apiUrl })
-    const session = {
-      token: data.token,
-      expiresAt: Date.now() + (data.expiresIn ?? 43200) * 1000,
-      user: data.user,
-      apiUrl,
-    }
+    const session = toSession(await send("POST", "/auth/login", { email, password }, { apiUrl }), apiUrl)
     await saveSession(session)
     return session
+  },
+
+  /**
+   * Rolling sessions: swaps a token older than a day for a fresh one, so you
+   * stay signed in until you sign out. Returns the current session. Network
+   * errors keep the old token; a 401 signs out (handled in `send`).
+   */
+  async refreshIfStale(session) {
+    if (Date.now() - (session.issuedAt ?? 0) < REFRESH_AFTER_MS) return session
+    try {
+      const next = toSession(await send("POST", "/auth/refresh"), session.apiUrl)
+      await saveSession(next)
+      return next
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error
+      return session
+    }
   },
   me: () => send("GET", "/auth/me"),
 
@@ -119,4 +143,8 @@ export const api = {
 
   listReferrals: () => send("GET", "/referrals"),
   createReferral: (input) => send("POST", "/referrals", input),
+  updateReferral: (id, patch) => send("PUT", `/referrals/${enc(id)}`, patch),
+
+  /** Email and LinkedIn templates (the server seeds the defaults on first read). */
+  listTemplates: () => send("GET", "/templates"),
 }

@@ -255,7 +255,10 @@
 
       <footer class="actions">
         <button id="btn-reread" class="btn ghost" type="button" title="Read the page again">Re-read page</button>
-        <button id="btn-save" class="btn primary" type="button">Save application</button>
+        <div class="row">
+          <button id="btn-message" class="btn" type="button" title="Write a LinkedIn message from a template, without saving" hidden>Write message</button>
+          <button id="btn-save" class="btn primary" type="button">Save application</button>
+        </div>
       </footer>
     </section>
 
@@ -267,10 +270,42 @@
       <h1 id="success-title"></h1>
       <p id="success-detail" class="muted"></p>
       <div class="stack narrow">
+        <button id="success-message" class="btn primary block" type="button" hidden>Message on LinkedIn</button>
         <button id="success-open" class="btn primary block" type="button">Open in knot</button>
         <button id="success-referral" class="btn block" type="button" hidden>Add a referral for this job</button>
         <button id="success-again" class="btn ghost block" type="button">Add another</button>
       </div>
+    </section>
+
+    <!-- LinkedIn message from a template -->
+    <section id="view-message" class="view" hidden>
+      <div class="intro">
+        <h1 id="message-title">LinkedIn message</h1>
+        <p class="muted">Pick a template, check the text, then paste it into LinkedIn.</p>
+      </div>
+      <div class="stack">
+        <p id="message-empty" class="alert" hidden>
+          You don't have any LinkedIn templates yet.
+          <button id="message-add-templates" class="link" type="button">Add them in knot</button>.
+        </p>
+        <label class="field">
+          <span class="label">Template</span>
+          <select id="message-template"></select>
+        </label>
+        <label class="field">
+          <span class="label">Message</span>
+          <textarea id="message-text" rows="9"></textarea>
+        </label>
+        <div class="row between small">
+          <span id="message-status" class="muted"></span>
+          <span id="message-count" class="muted mono"></span>
+        </div>
+        <p id="message-tip" class="hint"></p>
+      </div>
+      <footer class="actions">
+        <button id="message-back" class="btn ghost" type="button">Back</button>
+        <button id="message-copy" class="btn primary" type="button">Copy message</button>
+      </footer>
     </section>
   </body>
 </html>

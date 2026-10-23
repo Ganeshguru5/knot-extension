@@ -282,6 +282,15 @@ code,
   justify-content: flex-end;
 }
 
+.row.between {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.warn-text {
+  color: var(--warn);
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -526,7 +535,7 @@ textarea:focus {
 
 .actions {
   position: sticky;
-  bottom: -14px;
+  bottom: 0;
   display: flex;
   justify-content: space-between;
   gap: 8px;

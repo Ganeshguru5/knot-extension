@@ -1,14 +1,14 @@
 /**
  * Persistent extension state.
  * - settings and the session live in `chrome.storage.local` (survive restarts;
- *   the session token itself expires after 12 hours on the server).
+ *   the session token is refreshed daily and lasts until you sign out).
  * - unsaved form drafts live in `chrome.storage.session` (cleared when the
  *   browser closes) so closing the popup to copy something doesn't lose input.
  */
 
 export const DEFAULT_SETTINGS = {
-  /** knot-server base URL (`npm run dev` in knot-server listens on 3001). */
-  apiUrl: "http://localhost:3001",
+  /** knot-server base URL (the deployed API; local `npm run dev` listens on 3001). */
+  apiUrl: "https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com",
   /** knot web app, used for "Open in knot" links. */
   appUrl: "http://localhost:3000",
 }

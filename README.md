@@ -13,6 +13,11 @@ someone's LinkedIn profile.
   referral. Pick a saved application to fill in the role and job link. The job you saved
   last is preselected, so the usual order is: save the job, open an employee's profile,
   add the referral.
+- **LinkedIn message:** after adding a referral, choose **Message on LinkedIn**, or click
+  **Write message** on the Referral tab to message someone without saving anything. It fills one
+  of your knot LinkedIn templates (Templates → LinkedIn) with their first name, company, role and
+  job link, shows the count against LinkedIn's 300-character connection-note limit, and copies
+  it so you can paste it into LinkedIn. Copying for a saved referral also marks it "Request sent".
 - Companies and contacts are matched to what's already in knot, by company name and by
   LinkedIn URL (or exact name). New ones are created only when there's no match.
 - Your unsaved input is kept if the popup closes (for example when you click the page to
@@ -22,22 +27,38 @@ No build step and no dependencies: plain ES modules.
 
 ## Install (developer mode)
 
-1. Start the backend: `cd ../knot-server && npm run dev` (API on `http://localhost:3001`).
-2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and
+1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and
    select this `knot-extension` folder. Edge and Brave work the same way.
-3. Pin the extension, click it and sign in with your knot email and password.
+2. Pin the extension, click it and sign in with your knot email and password.
 
 After you change code, click the reload icon on the extension's card.
 
-### Using a deployed API
+### Servers
 
-Open the popup's ⚙ **Settings** and set:
+By default the extension talks to the deployed API,
+`https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com`. In the popup's ⚙ **Settings** you can
+change:
 
-- **API URL**: the `ApiUrl` output of `sam deploy`
-- **App URL**: where the knot web app is hosted (used for "Open in knot" links)
+- **API URL**: to use a local server, run `cd ../knot-server && npm run dev` and enter
+  `http://localhost:3001`. Chrome asks once for permission to reach localhost.
+- **App URL**: where the knot web app runs, used for "Open in knot" links. The default is
+  `http://localhost:3000`.
 
-Chrome asks you once to let the extension reach that host. The server doesn't need any CORS
-changes. Extension pages that have host permission aren't subject to CORS.
+Other API hosts must first be added to `host_permissions` in `manifest.json`. The server
+doesn't need any CORS changes, because extension pages that have host permission aren't
+subject to CORS.
+
+## Publishing to the Chrome Web Store
+
+1. Raise `"version"` in `manifest.json`. Every upload needs a higher version than the last.
+2. Build the zip (PowerShell, from this folder):
+   ```powershell
+   New-Item -ItemType Directory -Force dist; tar.exe -a -c -f dist\knot-extension-<version>.zip manifest.json icons src
+   ```
+3. Upload it in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole).
+   The listing text, permission justifications, privacy answers and screenshots are in
+   [store/](store/LISTING.md). Host [store/privacy-policy.html](store/privacy-policy.html)
+   at a public URL and paste that link into the Privacy tab.
 
 ## Supported sites
 
@@ -69,7 +90,8 @@ src/lib/constants.js status/work-mode/relationship options (same as the web app)
 
 - `activeTab` + `scripting`: read the page only when you open the extension on it. The
   extension doesn't run on pages in the background.
-- `storage`: settings, the session token (expires after 12 hours, like the web app) and
+- `storage`: settings, the session token (kept until you sign out, like the web app) and
   drafts.
-- `http://localhost/*`, `http://127.0.0.1/*`: the local API. Other API hosts are requested
-  at runtime when you set them in Settings.
+- The knot API host: signing in and saving your data.
+- `http://localhost/*`, `http://127.0.0.1/*` (optional): requested only if you point the
+  extension at a local knot-server in Settings.

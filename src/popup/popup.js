@@ -35,6 +35,8 @@ const state = {
   contacts: [],
   applications: [],
   resumes: [],
+  /** Loaded on first use of the LinkedIn message view. */
+  templates: undefined,
   /** What the success view's buttons act on. */
   saved: undefined,
 }
@@ -47,7 +49,7 @@ const $ = (id) => document.getElementById(id)
 const jobForm = $("job-form")
 const referralForm = $("referral-form")
 
-const VIEWS = ["view-loading", "view-login", "view-settings", "view-main", "view-success"]
+const VIEWS = ["view-loading", "view-login", "view-settings", "view-main", "view-success", "view-message"]
 
 function show(view) {
   for (const id of VIEWS) $(id).hidden = id !== view
@@ -157,6 +159,11 @@ async function init() {
   state.session = await getSession()
   if (!state.session || (state.session.apiUrl && state.session.apiUrl !== state.settings.apiUrl)) {
     return showLogin()
+  }
+  try {
+    state.session = await api.refreshIfStale(state.session)
+  } catch (error) {
+    return handleError(error)
   }
   await start()
 }
@@ -548,7 +555,19 @@ async function saveReferral() {
 
     const referral = await api.createReferral(input)
     await clearDraft()
-    state.saved = { type: "referral", referral }
+    state.saved = {
+      type: "referral",
+      referral,
+      message: {
+        name: contact.name,
+        linkedin: contact.linkedin ?? values.linkedin,
+        company: companyName(companyId) || values.company,
+        role: values.role,
+        jobId: values.jobId,
+        jobUrl: values.jobUrl,
+        referral,
+      },
+    }
     showSuccess("Referral added", `${contact.name} · ${values.role} at ${companyName(companyId) || values.company}`)
   } catch (error) {
     handleError(error)
@@ -627,6 +646,7 @@ function setMode(mode) {
   jobForm.hidden = mode !== "job"
   referralForm.hidden = mode !== "referral"
   $("btn-save").textContent = mode === "job" ? "Save application" : "Add referral"
+  $("btn-message").hidden = mode !== "referral"
   setAlert($("main-error"), "")
 
   const banner = $("detect-banner")
@@ -649,6 +669,9 @@ function showSuccess(title, detail) {
   $("success-title").textContent = title
   $("success-detail").textContent = detail
   $("success-referral").hidden = state.saved?.type !== "application"
+  // After a referral, messaging them is the natural next step, so it leads.
+  $("success-message").hidden = state.saved?.type !== "referral"
+  $("success-open").classList.toggle("primary", state.saved?.type !== "referral")
   show("view-success")
 }
 
@@ -683,6 +706,134 @@ function scheduleDraftSave() {
       referral: readForm(referralForm, { raw: true }),
     }).catch(() => {})
   }, 250)
+}
+
+/* ------------------------------------------------------------------ */
+/* LinkedIn message (templates from knot)                              */
+/* ------------------------------------------------------------------ */
+
+/** LinkedIn's limit for the note on a connection request. */
+const LINKEDIN_NOTE_LIMIT = 300
+const VARIABLE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g
+
+/** Same rule as the web app: unfilled variables stay visible. */
+const fillTemplate = (source, values) =>
+  source.replace(VARIABLE, (whole, key) => (values[key] ? values[key] : whole))
+
+const message = {
+  /** `{ name, linkedin, company, role, jobId, jobUrl, referral? }` */
+  target: undefined,
+  templates: [],
+  returnTo: "view-main",
+}
+
+async function loadLinkedInTemplates() {
+  if (!state.templates) state.templates = await api.listTemplates()
+  return state.templates.filter((t) => (t.channel ?? "email") === "linkedin")
+}
+
+/** Opens the message view for a person (and optionally a saved referral). */
+async function openMessage(target, returnTo) {
+  message.target = target
+  message.returnTo = returnTo
+  $("message-title").textContent = `LinkedIn message to ${target.name || "them"}`
+  $("message-copy").textContent = "Copy message"
+  show("view-loading")
+  try {
+    message.templates = await loadLinkedInTemplates()
+  } catch (error) {
+    show(returnTo)
+    return handleError(error)
+  }
+
+  const select = $("message-template")
+  setOptions(select, message.templates.map((t) => ({ value: t.id, label: t.name })))
+  // Most people you message from a profile aren't connected yet: start with the connection note.
+  const preferred =
+    message.templates.find((t) => t.id === "tpl_default_li_connect_referral") ??
+    message.templates.find((t) => t.category === "referral") ??
+    message.templates[0]
+  if (preferred) select.value = preferred.id
+
+  const empty = message.templates.length === 0
+  $("message-empty").hidden = !empty
+  select.closest(".field").hidden = empty
+  $("message-text").closest(".field").hidden = empty
+  $("message-copy").disabled = empty
+
+  const onProfile = linkedInSlug(state.tab?.url) && linkedInSlug(state.tab?.url) === linkedInSlug(target.linkedin)
+  $("message-tip").textContent = onProfile
+    ? "On their profile: Connect → Add a note (up to 300 characters), or Message if you're already connected. Then paste."
+    : "Open their LinkedIn profile, then paste into a connection note or a message."
+
+  applyMessageTemplate()
+  show("view-message")
+}
+
+function messageValues() {
+  const t = message.target ?? {}
+  return {
+    name: (t.name ?? "").split(/\s+/)[0],
+    company: t.company,
+    role: t.role,
+    jobId: t.jobId,
+    jobUrl: t.jobUrl,
+    senderName: state.session?.user?.name,
+  }
+}
+
+function applyMessageTemplate() {
+  const template = message.templates.find((t) => t.id === $("message-template").value)
+  $("message-text").value = template ? fillTemplate(template.body, messageValues()) : ""
+  renderMessageMeta()
+}
+
+function renderMessageMeta() {
+  const text = $("message-text").value
+  const over = text.length > LINKEDIN_NOTE_LIMIT
+  const count = $("message-count")
+  count.textContent = `${text.length} / ${LINKEDIN_NOTE_LIMIT}`
+  count.title = over ? "Too long for a connection note; send it as a message" : "Fits a connection note"
+  count.classList.toggle("warn-text", over)
+  const status = $("message-status")
+  const unfilled = VARIABLE.test(text)
+  VARIABLE.lastIndex = 0
+  status.textContent = unfilled
+    ? "Fill in the {{variables}} before sending."
+    : over
+      ? "Too long for a connection note."
+      : "Fits a connection note."
+  status.classList.toggle("warn-text", unfilled || over)
+}
+
+async function copyMessage() {
+  const text = $("message-text").value
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    // Fallback for when the async Clipboard API is unavailable.
+    $("message-text").select()
+    if (!document.execCommand("copy")) {
+      $("message-status").textContent = "Couldn't copy. Select the text and copy it yourself."
+      return
+    }
+  }
+  $("message-copy").textContent = "Copied ✓"
+  $("message-status").textContent = "Copied. Paste it into LinkedIn."
+  $("message-status").classList.remove("warn-text")
+
+  // Sending the message is the request: move a saved referral along.
+  const referral = message.target?.referral
+  if (referral && referral.status === "not_contacted") {
+    try {
+      message.target.referral = await api.updateReferral(referral.id, {
+        status: "request_sent",
+        requestDate: new Date().toISOString(),
+      })
+    } catch (error) {
+      console.warn("knot: couldn't mark the referral as requested", error)
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -734,8 +885,12 @@ function wireEvents() {
       if (!(await access)) {
         return setAlert($("settings-error"), `knot needs permission to reach ${new URL(apiUrl).host}.`)
       }
-    } catch (error) {
-      return setAlert($("settings-error"), error.message)
+    } catch {
+      // Only hosts declared in manifest.json can be requested.
+      return setAlert(
+        $("settings-error"),
+        `This build can't connect to ${new URL(apiUrl).host}. Use the knot API or localhost, or add the host to manifest.json.`,
+      )
     }
     const changedServer = apiUrl !== state.settings.apiUrl
     state.settings = await saveSettings({ apiUrl, appUrl })
@@ -811,6 +966,35 @@ function wireEvents() {
     })
   })
   $("success-again").addEventListener("click", () => start({ keepDraft: false, mode: state.mode }))
+
+  // LinkedIn message: after saving a referral, or straight from the Referral tab.
+  $("success-message").addEventListener("click", () => {
+    if (state.saved?.message) void openMessage(state.saved.message, "view-success")
+  })
+  $("btn-message").addEventListener("click", () => {
+    const values = readForm(referralForm)
+    void openMessage(
+      {
+        name: values.name,
+        linkedin: values.linkedin,
+        company: values.company,
+        role: values.role,
+        jobId: values.jobId,
+        jobUrl: values.jobUrl,
+      },
+      "view-main",
+    )
+  })
+  $("message-template").addEventListener("change", applyMessageTemplate)
+  $("message-text").addEventListener("input", () => {
+    $("message-copy").textContent = "Copy message"
+    renderMessageMeta()
+  })
+  $("message-copy").addEventListener("click", () => void copyMessage())
+  $("message-back").addEventListener("click", () => show(message.returnTo))
+  $("message-add-templates").addEventListener("click", () =>
+    openApp("/communication/templates?channel=linkedin"),
+  )
 }
 
 init().catch(handleError)

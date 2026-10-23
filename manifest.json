@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "knot — Job & Referral Capture",
   "short_name": "knot",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "description": "Save the job you're applying to and add referrals from LinkedIn profiles straight into your knot account.",
   "minimum_chrome_version": "116",
   "action": {
@@ -28,6 +28,6 @@
     }
   },
   "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
-  "optional_host_permissions": ["https://*/*", "http://*/*"]
+  "host_permissions": ["https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com/*"],
+  "optional_host_permissions": ["http://localhost/*", "http://127.0.0.1/*"]
 }
