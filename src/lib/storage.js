@@ -10,8 +10,11 @@ export const DEFAULT_SETTINGS = {
   /** knot-server base URL (the deployed API; local `npm run dev` listens on 3001). */
   apiUrl: "https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com",
   /** knot web app, used for "Open in knot" links. */
-  appUrl: "http://localhost:3000",
+  appUrl: "https://knot-ui-eight.vercel.app",
 }
+
+/** The previous default, still saved by anyone who opened Settings. */
+const OLD_DEFAULT_APP_URL = "http://localhost:3000"
 
 const SETTINGS_KEY = "knot:settings"
 const SESSION_KEY = "knot:session"
@@ -21,10 +24,13 @@ const trimSlash = (url) => String(url ?? "").trim().replace(/\/+$/, "")
 
 export async function getSettings() {
   const { [SETTINGS_KEY]: saved } = await chrome.storage.local.get(SETTINGS_KEY)
-  return {
-    apiUrl: trimSlash(saved?.apiUrl) || DEFAULT_SETTINGS.apiUrl,
-    appUrl: trimSlash(saved?.appUrl) || DEFAULT_SETTINGS.appUrl,
+  const apiUrl = trimSlash(saved?.apiUrl) || DEFAULT_SETTINGS.apiUrl
+  let appUrl = trimSlash(saved?.appUrl) || DEFAULT_SETTINGS.appUrl
+  // Against the deployed API, a localhost app URL is the old default, not a choice.
+  if (appUrl === OLD_DEFAULT_APP_URL && apiUrl === DEFAULT_SETTINGS.apiUrl) {
+    appUrl = DEFAULT_SETTINGS.appUrl
   }
+  return { apiUrl, appUrl }
 }
 
 export async function saveSettings(settings) {

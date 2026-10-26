@@ -42,7 +42,7 @@ change:
 - **API URL**: to use a local server, run `cd ../knot-server && npm run dev` and enter
   `http://localhost:3001`. Chrome asks once for permission to reach localhost.
 - **App URL**: where the knot web app runs, used for "Open in knot" links. The default is
-  `http://localhost:3000`.
+  `https://knot-ui-eight.vercel.app`; use `http://localhost:3000` with a local `npm run dev`.
 
 Other API hosts must first be added to `host_permissions` in `manifest.json`. The server
 doesn't need any CORS changes, because extension pages that have host permission aren't

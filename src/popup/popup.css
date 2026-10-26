@@ -1,48 +1,50 @@
-/* Palette mirrors knot's globals.css (neutral oklch, hue 265). */
+/* Palette mirrors knot's globals.css: warm paper and ink, teal primary. */
 :root {
   color-scheme: light;
-  --bg: oklch(1 0 0);
-  --surface: oklch(0.985 0.002 265);
-  --fg: oklch(0.2 0.012 265);
-  --muted: oklch(0.52 0.012 265);
-  --border: oklch(0.91 0.004 265);
-  --input: oklch(0.88 0.006 265);
-  --primary: oklch(0.24 0.014 265);
-  --primary-fg: oklch(0.985 0 0);
-  --accent: oklch(0.955 0.004 265);
-  --ring: oklch(0.6 0.02 265 / 0.35);
-  --danger: oklch(0.55 0.2 27);
+  --bg: oklch(0.99 0.004 85);
+  --surface: oklch(0.975 0.007 85);
+  --fg: oklch(0.22 0.02 250);
+  --muted: oklch(0.52 0.018 250);
+  --border: oklch(0.91 0.008 85);
+  --input: oklch(0.89 0.01 85);
+  --primary: oklch(0.52 0.1 188);
+  --primary-fg: oklch(0.99 0.004 85);
+  --accent: oklch(0.95 0.012 185);
+  --brand: oklch(0.56 0.105 187);
+  --ring: oklch(0.6 0.11 186 / 0.35);
+  --danger: oklch(0.577 0.215 27);
   --danger-bg: oklch(0.97 0.02 27);
-  --warn: oklch(0.5 0.12 70);
-  --warn-bg: oklch(0.975 0.035 85);
-  --ok: oklch(0.48 0.12 155);
-  --ok-bg: oklch(0.97 0.03 155);
-  --info-bg: oklch(0.97 0.012 250);
-  --missing: oklch(0.72 0.13 70);
+  --warn: oklch(0.5 0.12 65);
+  --warn-bg: oklch(0.975 0.035 80);
+  --ok: oklch(0.48 0.12 150);
+  --ok-bg: oklch(0.97 0.03 150);
+  --info-bg: oklch(0.97 0.015 235);
+  --missing: oklch(0.72 0.14 65);
   --radius: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: oklch(0.17 0.008 265);
-    --surface: oklch(0.2 0.009 265);
-    --fg: oklch(0.96 0.004 265);
-    --muted: oklch(0.68 0.01 265);
-    --border: oklch(0.28 0.01 265);
-    --input: oklch(0.32 0.011 265);
-    --primary: oklch(0.94 0.004 265);
-    --primary-fg: oklch(0.2 0.012 265);
-    --accent: oklch(0.255 0.011 265);
-    --ring: oklch(0.7 0.02 265 / 0.35);
-    --danger: oklch(0.7 0.17 25);
-    --danger-bg: oklch(0.26 0.05 25);
-    --warn: oklch(0.8 0.12 80);
-    --warn-bg: oklch(0.27 0.04 80);
-    --ok: oklch(0.75 0.13 155);
-    --ok-bg: oklch(0.25 0.04 155);
-    --info-bg: oklch(0.24 0.02 250);
-    --missing: oklch(0.72 0.13 75);
+    --bg: oklch(0.17 0.012 235);
+    --surface: oklch(0.205 0.014 235);
+    --fg: oklch(0.95 0.006 220);
+    --muted: oklch(0.7 0.014 225);
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 13%);
+    --primary: oklch(0.76 0.12 180);
+    --primary-fg: oklch(0.18 0.02 220);
+    --accent: oklch(0.27 0.03 200);
+    --brand: oklch(0.76 0.12 180);
+    --ring: oklch(0.72 0.12 182 / 0.35);
+    --danger: oklch(0.68 0.19 22);
+    --danger-bg: oklch(0.26 0.05 22);
+    --warn: oklch(0.8 0.13 72);
+    --warn-bg: oklch(0.27 0.04 72);
+    --ok: oklch(0.72 0.13 150);
+    --ok-bg: oklch(0.25 0.04 150);
+    --info-bg: oklch(0.24 0.03 235);
+    --missing: oklch(0.8 0.13 72);
   }
 }
 
@@ -137,8 +139,19 @@ code,
 }
 
 .brand-mark svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
+}
+
+/* The tile inverts with the theme, so the accent takes the other theme's --brand. */
+.brand-mark .knot-accent {
+  stroke: oklch(0.76 0.12 180);
+}
+
+@media (prefers-color-scheme: dark) {
+  .brand-mark .knot-accent {
+    stroke: oklch(0.56 0.105 187);
+  }
 }
 
 .brand-name {
