@@ -262,7 +262,6 @@ export function extractPage() {
         ".jobs-details-top-card__job-title",
         "h1.top-card-layout__title",
         ".topcard__title",
-        "h1",
       ],
       pane,
     )
@@ -316,14 +315,56 @@ export function extractPage() {
       ".description__text",
     ]).replace(/^About the job\s*/i, "")
 
-    // /jobs/view titles read "Role | Company | LinkedIn"; guest pages use
+    // The signed-in UI uses hashed class names, so the rest avoids classes.
+    // A link to the job itself is the title, in the top card and the list card.
+    // Its accessible copy repeats the title ("Role with verification"), so read
+    // only the visible part.
+    const titleText = (el) =>
+      clean(
+        text(el.querySelector('[aria-hidden="true"]')) ||
+          text(el) ||
+          (el.getAttribute("aria-label") ?? ""),
+      ).replace(/\s+with verification$/i, "")
+    if (!job.role && id) {
+      const links = [
+        ...(pane === document ? [] : pane.querySelectorAll(`a[href*="/jobs/view/${id}"]`)),
+        ...document.querySelectorAll(`a[href*="/jobs/view/${id}"]`),
+      ]
+      for (const link of links) {
+        job.role = titleText(link)
+        if (job.role) break
+      }
+    }
+    // Buttons: "Easy Apply to Role at Company", "Apply to Role on company website",
+    // "Save Role at Company".
+    if (!job.role) {
+      for (const el of document.querySelectorAll(
+        '[aria-label^="Easy Apply to "], [aria-label^="Apply to "], [aria-label^="Save "]',
+      )) {
+        const label = clean(el.getAttribute("aria-label"))
+        const match = label.match(
+          /^(?:Easy Apply to|Apply to|Save) (.+?)(?: on company website| at .+)$/i,
+        )
+        if (match) {
+          job.role = clean(match[1])
+          break
+        }
+      }
+    }
+
+    // Page titles read "Role | Company | LinkedIn"; guest pages use
     // og:title "Company hiring Role in Location | LinkedIn".
-    if (path.startsWith("/jobs/view")) {
-      const parts = document.title.replace(/^\(\d+\)\s*/, "").split(" | ")
-      if (parts.length >= 3) fill(job, { role: parts[0], company: parts[1] })
+    const parts = document.title.replace(/^\(\d+\)\s*/, "").split(" | ")
+    if (
+      parts.length >= 3 &&
+      (path.startsWith("/jobs/view") ||
+        (job.company && clean(parts[1]).toLowerCase() === job.company.toLowerCase()))
+    ) {
+      fill(job, { role: parts[0], company: parts[1] })
     }
     const og = meta("og:title").match(/^(.+?) hiring (.+?) in (.+?) \| LinkedIn/i)
     if (og) fill(job, { company: og[1], role: og[2], location: og[3] })
+    if (!job.role && pane !== document) job.role = pick(["h1"], pane)
 
     return job
   }
@@ -511,7 +552,9 @@ export function extractPage() {
   const jobish = /\b(jobs?|careers?|positions?|openings?|vacanc(y|ies)|apply)\b/i.test(
     `${host} ${path}`,
   )
-  if (matched || posting || jobish) {
+  // Not on LinkedIn: its first <h1> is often a feed heading, not the job, and a
+  // blank role is flagged for the user while a wrong one slips through.
+  if ((matched || posting || jobish) && site !== "LinkedIn") {
     fill(job, {
       role: pick(["h1"]) || clean(meta("og:title").split(/ [|\-–] /)[0]),
       company: meta("og:site_name"),
