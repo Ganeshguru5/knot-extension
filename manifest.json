@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "iamcandidate — Job & Referral Capture",
-  "short_name": "iamcandidate",
+  "name": "IamCandidate — Job & Referral Capture",
+  "short_name": "IamCandidate",
   "version": "1.2.0",
-  "description": "Save the job you're applying to and add referrals from LinkedIn profiles straight into your iamcandidate account.",
+  "description": "Save the job you're applying to and add referrals from LinkedIn profiles straight into your IamCandidate account.",
   "minimum_chrome_version": "116",
   "action": {
-    "default_title": "Save to iamcandidate (Alt+K)",
+    "default_title": "Save to IamCandidate (Alt+K)",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -24,7 +24,7 @@
   "commands": {
     "_execute_action": {
       "suggested_key": { "default": "Alt+K", "mac": "Alt+K" },
-      "description": "Open iamcandidate on the current page"
+      "description": "Open IamCandidate on the current page"
     }
   },
   "permissions": ["activeTab", "scripting", "storage"],

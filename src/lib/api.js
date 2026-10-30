@@ -61,7 +61,7 @@ async function send(method, path, body, { token, apiUrl } = {}) {
     })
   } catch {
     throw new ApiError(
-      `Can't reach iamcandidate at ${settings.apiUrl}. Is the server running, and is the URL right in Settings?`,
+      `Can't reach IamCandidate at ${settings.apiUrl}. Is the server running, and is the URL right in Settings?`,
       0,
       "NETWORK_ERROR",
     )

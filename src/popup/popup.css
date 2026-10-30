@@ -1,4 +1,4 @@
-/* Palette mirrors iamcandidate's globals.css: warm paper and ink, teal primary. */
+/* Palette mirrors IamCandidate's globals.css: warm paper and ink, teal primary. */
 :root {
   color-scheme: light;
   --bg: oklch(0.99 0.004 85);
@@ -157,6 +157,11 @@ code,
 .brand-name {
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.brand-iam {
+  color: var(--brand);
 }
 
 .chip {

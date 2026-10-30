@@ -235,7 +235,7 @@ async function readPage() {
     })
     return result?.result ?? fallback
   } catch (error) {
-    console.warn("iamcandidate: could not read the page", error)
+    console.warn("IamCandidate: could not read the page", error)
     return { ...fallback, blocked: true }
   }
 }
@@ -279,7 +279,7 @@ function fillStaticOptions() {
       value: r.id,
       label: `${r.title}${r.version ? ` (${r.version})` : ""}${r.isDefault ? " · default" : ""}`,
     })),
-    { placeholder: state.resumes.length ? "None" : "No resumes in iamcandidate" },
+    { placeholder: state.resumes.length ? "None" : "No resumes in IamCandidate" },
   )
   setOptions(field(referralForm, "relationship"), RELATIONSHIPS)
   setOptions(field(referralForm, "status"), REFERRAL_STATUSES)
@@ -360,7 +360,7 @@ function renderDuplicate() {
   if (!duplicate) return
   const status = APPLICATION_STATUSES.find((s) => s.value === duplicate.status)?.label ?? duplicate.status
   box.append(
-    `Already in iamcandidate: ${duplicate.role} at ${companyName(duplicate.companyId) || "this company"} (${status}). `,
+    `Already in IamCandidate: ${duplicate.role} at ${companyName(duplicate.companyId) || "this company"} (${status}). `,
   )
   const link = Object.assign(document.createElement("button"), {
     type: "button",
@@ -417,7 +417,7 @@ async function saveJob() {
 /* Referral                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Contact already in iamcandidate: same LinkedIn profile, else same name. */
+/** Contact already in IamCandidate: same LinkedIn profile, else same name. */
 function findContact() {
   const { linkedin, name } = readForm(referralForm)
   const slug = linkedInSlug(linkedin)
@@ -580,7 +580,7 @@ async function saveReferral() {
 /* Shared                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Id of the company named `name`, creating it in iamcandidate when it's new. */
+/** Id of the company named `name`, creating it in IamCandidate when it's new. */
 async function resolveCompany(name, status) {
   const existing = findCompany(name)
   if (existing) return existing.id
@@ -621,8 +621,8 @@ function renderCompanyHints(form) {
   hint.textContent = !name
     ? ""
     : existing
-      ? `Matches “${existing.name}” in iamcandidate`
-      : "New company — it will be added to iamcandidate"
+      ? `Matches “${existing.name}” in IamCandidate`
+      : "New company — it will be added to IamCandidate"
 }
 
 /** Everything that depends on the current field values. */
@@ -709,7 +709,7 @@ function scheduleDraftSave() {
 }
 
 /* ------------------------------------------------------------------ */
-/* LinkedIn message (templates from iamcandidate)                              */
+/* LinkedIn message (templates from IamCandidate)                              */
 /* ------------------------------------------------------------------ */
 
 /** LinkedIn's limit for the note on a connection request. */
@@ -831,7 +831,7 @@ async function copyMessage() {
         requestDate: new Date().toISOString(),
       })
     } catch (error) {
-      console.warn("iamcandidate: couldn't mark the referral as requested", error)
+      console.warn("IamCandidate: couldn't mark the referral as requested", error)
     }
   }
 }
@@ -883,13 +883,13 @@ function wireEvents() {
     const access = ensureApiAccess(apiUrl) // before any await: needs the gesture
     try {
       if (!(await access)) {
-        return setAlert($("settings-error"), `iamcandidate needs permission to reach ${new URL(apiUrl).host}.`)
+        return setAlert($("settings-error"), `IamCandidate needs permission to reach ${new URL(apiUrl).host}.`)
       }
     } catch {
       // Only hosts declared in manifest.json can be requested.
       return setAlert(
         $("settings-error"),
-        `This build can't connect to ${new URL(apiUrl).host}. Use the iamcandidate API or localhost, or add the host to manifest.json.`,
+        `This build can't connect to ${new URL(apiUrl).host}. Use the IamCandidate API or localhost, or add the host to manifest.json.`,
       )
     }
     const changedServer = apiUrl !== state.settings.apiUrl

@@ -9,7 +9,7 @@
 export const DEFAULT_SETTINGS = {
   /** iamcandidate-server base URL (the deployed API; local `npm run dev` listens on 3001). */
   apiUrl: "https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com",
-  /** iamcandidate web app, used for "Open in iamcandidate" links. */
+  /** IamCandidate web app, used for "Open in IamCandidate" links. */
   appUrl: "https://knot-ui-eight.vercel.app",
 }
 
