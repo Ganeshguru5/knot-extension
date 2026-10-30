@@ -1,7 +1,7 @@
 import { clearSession, getSession, getSettings, saveSession } from "./storage.js"
 
 /**
- * Client for the knot-server API. Responses use the envelope
+ * Client for the iamcandidate-server API. Responses use the envelope
  * `{ success, data }` / `{ success: false, error }`; this unwraps it and
  * throws {@link ApiError} with a readable message.
  *
@@ -61,7 +61,7 @@ async function send(method, path, body, { token, apiUrl } = {}) {
     })
   } catch {
     throw new ApiError(
-      `Can't reach knot at ${settings.apiUrl}. Is the server running, and is the URL right in Settings?`,
+      `Can't reach iamcandidate at ${settings.apiUrl}. Is the server running, and is the URL right in Settings?`,
       0,
       "NETWORK_ERROR",
     )

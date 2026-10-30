@@ -1,4 +1,4 @@
-/** Option lists — same values and labels as `knot/src/lib/constants.ts`. */
+/** Option lists — same values and labels as `iamcandidate-ui/src/lib/constants.ts`. */
 
 export const APPLICATION_STATUSES = [
   { value: "wishlist", label: "Wishlist" },
@@ -40,7 +40,7 @@ export const REFERRAL_STATUSES = [
   { value: "no_response", label: "No response" },
 ]
 
-/** Server-side length limits (`knot-server/src/schemas`). */
+/** Server-side length limits (`iamcandidate-server/src/schemas`). */
 export const LIMITS = {
   short: 200,
   phone: 50,

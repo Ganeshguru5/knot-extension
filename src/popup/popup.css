@@ -1,4 +1,4 @@
-/* Palette mirrors knot's globals.css: warm paper and ink, teal primary. */
+/* Palette mirrors iamcandidate's globals.css: warm paper and ink, teal primary. */
 :root {
   color-scheme: light;
   --bg: oklch(0.99 0.004 85);
@@ -144,12 +144,12 @@ code,
 }
 
 /* The tile inverts with the theme, so the accent takes the other theme's --brand. */
-.brand-mark .knot-accent {
+.brand-mark .iamcandidate-accent {
   stroke: oklch(0.76 0.12 180);
 }
 
 @media (prefers-color-scheme: dark) {
-  .brand-mark .knot-accent {
+  .brand-mark .iamcandidate-accent {
     stroke: oklch(0.56 0.105 187);
   }
 }

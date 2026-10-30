@@ -7,18 +7,18 @@
  */
 
 export const DEFAULT_SETTINGS = {
-  /** knot-server base URL (the deployed API; local `npm run dev` listens on 3001). */
+  /** iamcandidate-server base URL (the deployed API; local `npm run dev` listens on 3001). */
   apiUrl: "https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com",
-  /** knot web app, used for "Open in knot" links. */
+  /** iamcandidate web app, used for "Open in iamcandidate" links. */
   appUrl: "https://knot-ui-eight.vercel.app",
 }
 
 /** The previous default, still saved by anyone who opened Settings. */
 const OLD_DEFAULT_APP_URL = "http://localhost:3000"
 
-const SETTINGS_KEY = "knot:settings"
-const SESSION_KEY = "knot:session"
-const DRAFT_KEY = "knot:draft"
+const SETTINGS_KEY = "iamcandidate:settings"
+const SESSION_KEY = "iamcandidate:session"
+const DRAFT_KEY = "iamcandidate:draft"
 
 const trimSlash = (url) => String(url ?? "").trim().replace(/\/+$/, "")
 
@@ -72,7 +72,7 @@ export async function clearDraft() {
   await chrome.storage.session.remove(DRAFT_KEY)
 }
 
-const LAST_APPLICATION_KEY = "knot:last-application"
+const LAST_APPLICATION_KEY = "iamcandidate:last-application"
 
 /** The application saved most recently from this browser session, so a
  * referral added next (e.g. on an employee's profile) can link to it. */
