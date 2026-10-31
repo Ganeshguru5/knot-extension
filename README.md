@@ -76,7 +76,7 @@ subject to CORS.
 1. Raise `"version"` in `manifest.json`. Every upload needs a higher version than the last.
 2. Build the zip (PowerShell, from this folder):
    ```powershell
-   New-Item -ItemType Directory -Force dist; & "$env:SystemRoot\System32	ar.exe" -a -c -f dist\iamcandidate-extension-<version>.zip manifest.json icons src
+   New-Item -ItemType Directory -Force dist; & "$env:SystemRoot\System32\tar.exe" -a -c -f dist\iamcandidate-extension-<version>.zip manifest.json icons src
    ```
    Use Windows' own `tar.exe` as written: Git's `tar`, if it's first on your PATH, writes a
    tar file with a `.zip` name, which the Web Store rejects.
