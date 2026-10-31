@@ -26,17 +26,22 @@ someone's LinkedIn profile.
   upload, types your details (name, email, phone, location, links, current title and company,
   experience, notice period, salary, summary, cover letter) into matching empty fields, picks the
   matching option in searchable dropdowns (location, pronouns…), and reuses your saved answers,
-  including forms embedded in an iframe. Then it lists every question it found, required ones
+  including forms embedded in an iframe. Forms that ask for each job in its own block get your
+  **work history** in order, latest first: title, company, dates, location and description, with
+  "I currently work here" ticked for your current job (it never clicks "Add another"). Then it lists every question it found, required ones
   first, each marked filled, already answered, or needing your answer; click one to jump to it.
-  It never overwrites what's already typed, never touches passwords, checkboxes or sign-in forms,
-  and never submits. Chrome asks once, on your first Autofill, for access to the sites you apply
+  It never overwrites what's already typed, never touches passwords or sign-in forms, never ticks
+  consent, terms or sign-up boxes, and never submits. Once you've applied, **Mark this job as
+  applied** saves the job to your IamCandidate applications (asking for the role, company or work
+  mode only when the page didn't show them); a job already saved shows a link to it instead. Chrome asks once, on your first Autofill, for access to the sites you apply
   on, so the panel keeps working as you move between pages. Field matching is in
   [src/lib/autofill.js](src/lib/autofill.js), resume matching in [src/lib/match.js](src/lib/match.js).
 - **Your details live in IamCandidate:** everything it types comes from **Career → Autofill** in
-  the web app: contact, address, links, work, notice period and salary, work eligibility (yes/no),
+  the web app: contact, address, links, work, work history (every job with its dates), notice
+  period and salary, work eligibility (yes/no),
   education, optional voluntary self-identification, summary, cover letter, and saved answers to
   other questions. It starts from your IamCandidate profile, and **Fill empty fields from resume**
-  there copies your role, years of experience, education and summary from a resume. The extension
+  there copies your role, years of experience, jobs, education and summary from a resume. The extension
   loads it before each fill (using the copy on this device when offline), and the panel's
   **My details** tab shows a summary with a link to edit it. The copy here is removed when you
   sign out. Details and answers saved on this device by earlier versions are uploaded once.
@@ -51,7 +56,7 @@ someone's LinkedIn profile.
 - **It learns as you apply:** after a form has been filled, whatever you type into it is sent to
   your IamCandidate autofill profile a few seconds later. A detail you hadn't filled in yet (phone,
   notice period…) is added to your details; any other question ("How did you hear about us?",
-  dropdowns, yes/no choices) is saved as an answer and filled in the next time a form asks the same
+  dropdowns, yes/no choices, questions answered by ticking several boxes) is saved as an answer and filled in the next time a form asks the same
   question. Review or delete saved answers in Career → Autofill. Passwords, ID, card and bank
   numbers, dates of birth, one-time codes and voluntary self-identification answers are never saved.
 - Companies and contacts are matched to what's already in IamCandidate, by company name and by

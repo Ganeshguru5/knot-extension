@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "IamCandidate — Job & Referral Capture",
   "short_name": "IamCandidate",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details and resume.",
   "minimum_chrome_version": "116",
   "action": {
