@@ -136,3 +136,16 @@ export async function recallJob(tabId) {
   const latest = fresh.sort(([, a], [, b]) => b.at - a.at)[0]
   return (own ?? latest)?.[1].job
 }
+
+export const AUTO_FILL_KEY = "iamcandidate:auto-fill"
+
+/** Whether application forms are filled as soon as they open (on by default;
+ * it also needs access to sites, granted from the autofill panel). */
+export async function getAutoFill() {
+  const { [AUTO_FILL_KEY]: on } = await chrome.storage.local.get(AUTO_FILL_KEY)
+  return on !== false
+}
+
+export async function setAutoFill(on) {
+  await chrome.storage.local.set({ [AUTO_FILL_KEY]: !!on })
+}

@@ -63,6 +63,60 @@ body {
   height: 18px;
 }
 
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.switch-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.switch-row input {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  margin: 1px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--input);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch-row input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.25);
+  transition: transform 0.2s;
+}
+
+.switch-row input:checked {
+  background: var(--primary);
+}
+
+.switch-row input:checked::after {
+  transform: translateX(14px);
+}
+
+.switch-row input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---------- cards ---------- */
 
 .card {

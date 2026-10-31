@@ -2,11 +2,15 @@ import { api, ApiError } from "../lib/api.js"
 import { fillPage, focusField } from "../lib/autofill.js"
 import { extractPage } from "../lib/extract.js"
 import { matchResume } from "../lib/match.js"
+import { getReport, reportKey, saveReport } from "../lib/report.js"
+import { RESUME_PREF_KEY, resumeFile } from "../lib/resume-file.js"
 import {
   ANSWERS_KEY,
   AUTOFILL_KEY,
+  AUTO_FILL_KEY,
   SESSION_KEY,
   getAnswers,
+  getAutoFill,
   getAutofill,
   getSession,
   getSettings,
@@ -14,6 +18,7 @@ import {
   rememberJob,
   saveAnswers,
   saveAutofill,
+  setAutoFill,
 } from "../lib/storage.js"
 
 /**
@@ -40,9 +45,6 @@ const state = {
   running: false,
 }
 
-/** Larger files aren't worth passing into the page; you attach those yourself. */
-const MAX_RESUME_BYTES = 8 * 1024 * 1024
-const RESUME_PREF_KEY = "iamcandidate:panel-resume"
 /** Asked for on the first Autofill click, so the panel keeps working as you move between pages. */
 const SITE_ACCESS = { origins: ["https://*/*", "http://*/*"] }
 /** Set when the panel runs in its own window (browsers without side panels):
@@ -115,7 +117,7 @@ async function init() {
     return handleError(error)
   }
   show("view-main")
-  await readTab()
+  await Promise.all([renderAutoFill(), readTab()])
 }
 
 async function loadResumes() {
@@ -198,6 +200,16 @@ async function readTab() {
   }
   renderJob()
   renderMatch()
+  await showStoredReport()
+}
+
+/** The last fill in this tab (often the automatic one), unless one is running now. */
+async function showStoredReport() {
+  if (state.running || !state.tab?.id) return
+  const report = await getReport(state.tab.id, state.tab.url)
+  if (!report) return
+  $("run-card").hidden = false
+  renderResults(report.fields, undefined, { auto: report.auto })
 }
 
 /** "Application: Full-Stack Engineer" → "Full-Stack Engineer". */
@@ -293,34 +305,6 @@ function setSteps(steps) {
   )
 }
 
-/** Your resume's file as `{ name, type, base64 }`, or a reason it isn't attached. */
-async function resumeFile(resume) {
-  if (!resume?.documentId) return { skipped: "" }
-  try {
-    const [doc, link] = await Promise.all([
-      api.getDocument(resume.documentId),
-      api.getDocumentDownloadUrl(resume.documentId),
-    ])
-    const response = await fetch(link.url)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const blob = await response.blob()
-    if (blob.size > MAX_RESUME_BYTES) return { skipped: "Your resume file is over 8 MB, so attach it yourself." }
-    const dataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result))
-      reader.onerror = () => reject(reader.error)
-      reader.readAsDataURL(blob)
-    })
-    const type = blob.type || doc.mimeType || "application/pdf"
-    let name = doc.name || `${resume.title || "resume"}.pdf`
-    if (!/\.[a-z0-9]{2,4}$/i.test(name)) name += type.includes("pdf") ? ".pdf" : ""
-    return { file: { name, type, base64: dataUrl.slice(dataUrl.indexOf(",") + 1) } }
-  } catch (error) {
-    console.warn("IamCandidate: could not get the resume file", error)
-    return { skipped: "Couldn't download your resume file, so attach it yourself." }
-  }
-}
-
 async function runAutofill(access) {
   const tab = state.tab
   if (!tab?.id || !isHttpUrl(tab.url) || state.running) return
@@ -354,6 +338,7 @@ async function runAutofill(access) {
       args: [details, state.answers, { userId: userKey(), detailsKey: AUTOFILL_KEY, answersKey: ANSWERS_KEY }, file],
     })
     const fields = results.flatMap((r) => (r?.result?.fields ?? []).map((field) => ({ ...field, frameId: r.frameId })))
+    await saveReport(tab.id, tab.url, fields)
     renderResults(fields, skipped)
     if (!state.readable) await readTab()
   } catch (error) {
@@ -366,7 +351,7 @@ async function runAutofill(access) {
   }
 }
 
-function renderResults(fields, note) {
+function renderResults(fields, note, { auto = false } = {}) {
   $("run-steps").replaceChildren()
   $("run-results").hidden = false
 
@@ -384,11 +369,12 @@ function renderResults(fields, note) {
   const required = fields.filter((f) => f.required)
   const optional = fields.filter((f) => !f.required)
   const open = required.filter((f) => !answered(f)).length
+  const done = auto ? "Filled automatically" : "Done"
   $("run-title").textContent = !required.length
-    ? `Filled ${fields.filter((f) => f.status === "filled").length} questions`
+    ? `${done} — ${fields.filter((f) => f.status === "filled").length} questions`
     : open
-      ? `Done — ${open} required question${open === 1 ? "" : "s"} need${open === 1 ? "s" : ""} you`
-      : "Done — every required question is answered"
+      ? `${done} — ${open} required question${open === 1 ? "" : "s"} need${open === 1 ? "s" : ""} you`
+      : `${done} — every required question is answered`
   $("run-meter").style.width = `${required.length ? (100 * (required.length - open)) / required.length : 100}%`
   $("required-count").textContent = required.length
     ? `(${required.length - open} of ${required.length} answered)`
@@ -428,6 +414,19 @@ function fieldRow(field, index) {
     }
   })
   return el("li", {}, button)
+}
+
+/* ------------------------------------------------------------------ */
+/* Automatic filling                                                   */
+/* ------------------------------------------------------------------ */
+
+async function renderAutoFill() {
+  const [on, access] = await Promise.all([getAutoFill(), chrome.permissions.contains(SITE_ACCESS)])
+  const toggle = $("auto-toggle")
+  toggle.checked = on && access
+  $("auto-hint").textContent = !toggle.checked
+    ? "Off. Click Autofill on each form yourself."
+    : "Application forms are filled as soon as they open. Nothing is ever submitted."
 }
 
 /* ------------------------------------------------------------------ */
@@ -509,6 +508,16 @@ function wireEvents() {
     void runAutofill(access)
   })
 
+  $("auto-toggle").addEventListener("change", (event) => {
+    const on = event.target.checked
+    // Before any await: Chrome only asks for permissions during a click.
+    const access = on ? chrome.permissions.request(SITE_ACCESS) : Promise.resolve(true)
+    void access
+      .catch(() => false)
+      .then((granted) => setAutoFill(on && granted))
+      .then(renderAutoFill)
+  })
+
   $("resume-select").addEventListener("change", (event) => {
     state.resumeId = event.target.value
     void chrome.storage.local.set({ [RESUME_PREF_KEY]: state.resumeId })
@@ -533,7 +542,12 @@ function wireEvents() {
   chrome.windows.onFocusChanged.addListener(scheduleRead)
 
   chrome.storage.onChanged.addListener((changes, area) => {
+    // The background worker filled this tab's form.
+    if (area === "session" && state.tab?.id && changes[reportKey(state.tab.id)]?.newValue) {
+      void showStoredReport()
+    }
     if (area !== "local") return
+    if (changes[AUTO_FILL_KEY]) void renderAutoFill()
     // Signing in or out in the popup.
     if (changes[SESSION_KEY]) {
       void init()

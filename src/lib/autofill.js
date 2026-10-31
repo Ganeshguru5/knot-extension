@@ -26,8 +26,14 @@
  * this frame: every question it found, `status` "filled" (by this run), "had"
  * (already answered) or "empty". Each field is tagged with
  * `data-iamcandidate-field="<id>"` so {@link focusField} can find it.
+ *
+ * `options.onlyApplications` (for filling without a click) leaves frames
+ * alone unless they look like a job application: your name, an email or
+ * phone, and a resume upload, a job question or a careers URL. Newsletter
+ * and contact forms don't qualify. Such frames resolve to `{ fields: [],
+ * application: false }`. `options.detectOnly` stops after that check.
  */
-export async function fillPage(details, answers = {}, store = undefined, resume = undefined) {
+export async function fillPage(details, answers = {}, store = undefined, resume = undefined, options = {}) {
   const clean = (value) =>
     String(value ?? "")
       .replace(/ /g, " ")
@@ -334,6 +340,28 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
         !/cover|photo|picture|image|avatar|transcript|certificate/.test(aboutUpload(input)) &&
         (!input.accept || /pdf|doc/.test(input.accept)),
     )
+
+  /* ---------------- is this a job application? ---------------- */
+
+  if (options.onlyApplications || options.detectOnly) {
+    const JOB_KEYS = new Set([
+      "linkedin", "github", "portfolio", "noticePeriod", "expectedSalary", "currentSalary",
+      "experienceYears", "currentTitle", "currentCompany", "coverLetter",
+    ])
+    const asked = new Set()
+    for (const el of document.querySelectorAll("input, textarea, select")) {
+      if (!usable(el) || !visible(el)) continue
+      const key = keyFor(el)
+      if (key) asked.add(/name$/i.test(key) ? "name" : key)
+    }
+    const namedResume = uploads.some((input) => /resume|\bcv\b|curriculum/.test(aboutUpload(input)))
+    const jobish =
+      namedResume ||
+      [...asked].some((key) => JOB_KEYS.has(key)) ||
+      /\b(apply|application|careers?|jobs?)\b/i.test(`${location.href} ${document.title}`)
+    const application = asked.has("name") && (asked.has("email") || asked.has("phone")) && jobish
+    if (!application || options.detectOnly) return { fields: [], application, frame: location.hostname }
+  }
 
   let attached = false
   if (resume?.base64 && resumeInput && !resumeInput.files?.length) {
