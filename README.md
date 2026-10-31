@@ -18,20 +18,27 @@ someone's LinkedIn profile.
   of your IamCandidate LinkedIn templates (Templates → LinkedIn) with their first name, company, role and
   job link, shows the count against LinkedIn's 300-character connection-note limit, and copies
   it so you can paste it into LinkedIn. Copying for a saved referral also marks it "Request sent".
-- **Autofill:** on a job's application form, open the Autofill tab and click **Fill this page**.
-  It types your details (name, email, phone, location, LinkedIn/GitHub/portfolio links, current
-  title and company, experience, notice period, salary, summary, cover letter) into the matching
-  empty fields, including forms embedded in an iframe where Chrome allows it, and outlines each
-  filled field in green. It never overwrites what's already typed, never touches passwords, file
-  uploads, checkboxes or sign-in forms, and never submits: you attach your resume, check the form
-  and submit it yourself. Your details are pre-filled from your IamCandidate profile the first
-  time, saved on this device as you edit them, and removed when you sign out. Field matching is
-  in [src/lib/autofill.js](src/lib/autofill.js).
-- **It learns as you apply:** after you click **Fill this page**, whatever you type into that
+- **Autofill side panel:** on the Autofill tab, click **Open autofill panel**. The panel stays
+  beside the page and follows the tab you're on. It shows the job (read from the posting, or
+  remembered from the posting you opened before its application form), a **resume match** score
+  for the resume you pick (which of the skills the job names your resume mentions), and an
+  **Autofill this page** button. Autofill attaches your resume's saved file to the form's resume
+  upload, types your details (name, email, phone, location, links, current title and company,
+  experience, notice period, salary, summary, cover letter) into matching empty fields, picks the
+  matching option in searchable dropdowns (location, pronouns…), and reuses your saved answers,
+  including forms embedded in an iframe. Then it lists every question it found, required ones
+  first, each marked filled, already answered, or needing your answer; click one to jump to it.
+  It never overwrites what's already typed, never touches passwords, checkboxes or sign-in forms,
+  and never submits. Chrome asks once, on your first Autofill, for access to the sites you apply
+  on, so the panel keeps working as you move between pages. Edit your details under **My details**
+  in the panel; they're pre-filled from your IamCandidate profile the first time, saved on this
+  device, and removed when you sign out. Field matching is in
+  [src/lib/autofill.js](src/lib/autofill.js), resume matching in [src/lib/match.js](src/lib/match.js).
+- **It learns as you apply:** after you click **Autofill this page**, whatever you type into that
   form is remembered. A detail you hadn't filled in yet (phone, notice period…) is added to your
   details; any other question ("Are you authorized to work in India?", "How did you hear about
   us?", dropdowns, yes/no choices) is saved as an answer and filled in the next time a form asks
-  the same question. Saved answers are listed under **Saved answers** on the Autofill tab, where
+  the same question. Saved answers are listed under **Saved answers** in the panel's My details tab, where
   you can forget any of them. Passwords, ID, card and bank numbers, dates of birth and one-time
   codes are never saved.
 - Companies and contacts are matched to what's already in IamCandidate, by company name and by
@@ -96,18 +103,23 @@ into the popup in the meantime.
 manifest.json        MV3 manifest: popup, Alt+K shortcut, permissions
 icons/               toolbar icons (IamCandidate brand mark)
 src/popup/           popup UI: sign-in, settings, job + referral forms
+src/panel/           autofill side panel: job, resume match, fill report, your details
 src/lib/api.js       iamcandidate-server client (Bearer token, envelope unwrapping, 401 → sign-in)
 src/lib/extract.js   page reader, injected on demand with chrome.scripting
 src/lib/autofill.js  application-form filler, injected on demand with chrome.scripting
+src/lib/match.js     resume-to-job keyword match
 src/lib/storage.js   settings, session and autofill details (storage.local), drafts (storage.session)
 src/lib/constants.js status/work-mode/relationship options (same as the web app)
 ```
 
 ## Permissions
 
-- `activeTab` + `scripting`: read the page (or fill its application form, when you click
-  **Fill this page**) only when you open the extension on it. The
+- `activeTab` + `scripting`: read the page when you open the extension on it. The
   extension doesn't run on pages in the background.
+- `sidePanel`: the autofill panel.
+- `https://*/*`, `http://*/*` (optional): requested on your first **Autofill this page**, so the
+  panel can read the job and fill the form on whichever page you're on, and download your resume
+  file. Scripts are still only injected when the panel reads a page or you click Autofill.
 - `storage`: settings, the session token (kept until you sign out, like the web app),
   your autofill details, the answers learned from forms, and drafts.
 - The IamCandidate API host: signing in and saving your data.

@@ -252,106 +252,15 @@
         </fieldset>
       </form>
 
-      <!-- Autofill: your details, typed into the application form on the page -->
-      <form id="autofill-form" class="stack" novalidate hidden>
-        <div id="autofill-result" class="alert ok" hidden></div>
-        <fieldset class="group">
-          <legend>You</legend>
-          <label class="field">
-            <span class="label">Full name</span>
-            <input name="fullName" maxlength="200" autocomplete="name" />
-          </label>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Email</span>
-              <input name="email" type="email" maxlength="254" autocomplete="email" />
-            </label>
-            <label class="field">
-              <span class="label">Phone</span>
-              <input name="phone" type="tel" maxlength="40" autocomplete="tel" />
-            </label>
-          </div>
-          <label class="field">
-            <span class="label">City / location</span>
-            <input name="location" maxlength="200" />
-          </label>
-        </fieldset>
-
-        <fieldset class="group">
-          <legend>Links</legend>
-          <label class="field">
-            <span class="label">LinkedIn</span>
-            <input name="linkedin" type="url" maxlength="2048" placeholder="https://www.linkedin.com/in/…" />
-          </label>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">GitHub</span>
-              <input name="github" type="url" maxlength="2048" />
-            </label>
-            <label class="field">
-              <span class="label">Portfolio / website</span>
-              <input name="portfolio" type="url" maxlength="2048" />
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="group">
-          <legend>Work</legend>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Current title</span>
-              <input name="currentTitle" maxlength="200" />
-            </label>
-            <label class="field">
-              <span class="label">Current company</span>
-              <input name="currentCompany" maxlength="200" />
-            </label>
-          </div>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Years of experience</span>
-              <input name="experienceYears" maxlength="20" inputmode="decimal" />
-            </label>
-            <label class="field">
-              <span class="label">Notice period</span>
-              <input name="noticePeriod" maxlength="100" placeholder="e.g. 30 days" />
-            </label>
-          </div>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Current salary</span>
-              <input name="currentSalary" maxlength="100" />
-            </label>
-            <label class="field">
-              <span class="label">Expected salary</span>
-              <input name="expectedSalary" maxlength="100" />
-            </label>
-          </div>
-        </fieldset>
-
-        <details class="disclosure">
-          <summary>Summary &amp; cover letter</summary>
-          <div class="stack">
-            <label class="field">
-              <span class="label">Summary / about you</span>
-              <textarea name="summary" rows="4" maxlength="5000"></textarea>
-            </label>
-            <label class="field">
-              <span class="label">Cover letter</span>
-              <textarea name="coverLetter" rows="6" maxlength="20000"></textarea>
-            </label>
-          </div>
-        </details>
-        <details class="disclosure">
-          <summary>Saved answers <span id="answers-count" class="muted"></span></summary>
-          <p id="answers-empty" class="hint">
-            After you click Fill this page, the questions you answer on that form are saved here and
-            filled in for you next time.
-          </p>
-          <ul id="answers-list" class="answer-list"></ul>
-        </details>
-        <p class="hint">Saved on this device only. Filling types into empty fields; it never uploads files or submits the form.</p>
-      </form>
+      <!-- Autofill lives in the side panel, which stays open while you move through the form -->
+      <div id="autofill-pane" class="stack" hidden>
+        <p class="muted">
+          Autofill opens in a side panel beside the page. It shows the job, how your resume matches it,
+          and fills the application form with your details and resume, then lists the required questions
+          still waiting for you.
+        </p>
+        <p class="hint">It never submits the form: you check it and submit it yourself.</p>
+      </div>
 
       <datalist id="company-options"></datalist>
       <datalist id="contact-options"></datalist>

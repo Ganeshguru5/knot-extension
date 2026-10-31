@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IamCandidate Autofill</title>
+    <link rel="stylesheet" href="panel.css" />
+    <script type="module" src="panel.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <!-- The trefoil from iamcandidate-ui/src/components/layout/brand.tsx. -->
+            <path d="M8.46 15.18C8.53 15.59 8.64 15.98 8.78 16.34C8.92 16.7 9.09 17.04 9.28 17.33C9.48 17.63 9.7 17.89 9.94 18.11C10.18 18.33 10.45 18.52 10.72 18.65C10.99 18.79 11.28 18.88 11.57 18.93C11.86 18.97 12.15 18.97 12.44 18.93C12.73 18.88 13.02 18.78 13.29 18.65C13.56 18.51 13.82 18.33 14.06 18.11C14.3 17.89 14.53 17.62 14.72 17.32C14.92 17.03 15.09 16.69 15.23 16.33C15.36 15.97 15.47 15.58 15.54 15.17C15.61 14.76 15.65 14.32 15.65 13.88C15.65 13.44 15.61 12.98 15.54 12.53C15.46 12.07 15.35 11.61 15.2 11.15C15.05 10.7 14.86 10.25 14.64 9.82C14.43 9.39 14.17 8.97 13.89 8.57M9.89 5.41C9.5 5.26 9.1 5.16 8.72 5.1C8.34 5.04 7.96 5.03 7.61 5.05C7.26 5.07 6.92 5.13 6.61 5.23C6.3 5.33 6.01 5.47 5.75 5.64C5.5 5.8 5.28 6.01 5.1 6.24C4.91 6.46 4.76 6.72 4.66 6.99C4.56 7.27 4.5 7.56 4.48 7.87C4.46 8.17 4.49 8.49 4.56 8.81C4.64 9.13 4.76 9.46 4.92 9.77C5.08 10.09 5.28 10.41 5.53 10.7C5.77 11 6.06 11.29 6.38 11.56C6.7 11.82 7.06 12.07 7.44 12.29C7.82 12.51 8.24 12.71 8.67 12.87C9.1 13.03 9.57 13.16 10.03 13.26C10.5 13.36 10.98 13.42 11.47 13.45C11.95 13.47 12.44 13.46 12.92 13.42" />
+            <path class="iamcandidate-accent" d="M17.66 11.53C17.98 11.26 18.26 10.97 18.5 10.67C18.74 10.37 18.94 10.05 19.1 9.74C19.26 9.42 19.37 9.09 19.44 8.78C19.51 8.46 19.54 8.14 19.52 7.84C19.5 7.54 19.43 7.24 19.33 6.97C19.22 6.7 19.07 6.44 18.89 6.22C18.71 5.99 18.48 5.79 18.22 5.62C17.97 5.46 17.68 5.32 17.37 5.22C17.06 5.13 16.72 5.07 16.36 5.05C16.01 5.03 15.63 5.05 15.25 5.11C14.87 5.17 14.48 5.27 14.09 5.41C13.7 5.56 13.31 5.74 12.93 5.96C12.55 6.18 12.17 6.45 11.81 6.74C11.45 7.03 11.11 7.36 10.79 7.71C10.48 8.07 10.18 8.46 9.91 8.86C9.65 9.26 9.41 9.69 9.21 10.13" />
+          </svg>
+        </span>
+        <span class="brand-name"><span class="brand-iam">Iam</span>Candidate</span>
+        <span id="site-chip" class="chip" hidden></span>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-refresh" class="icon-btn" type="button" title="Read this page again" aria-label="Read this page again">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Loading -->
+    <section id="view-loading" class="view center">
+      <span class="spinner" aria-hidden="true"></span>
+      <p class="muted">Loading…</p>
+    </section>
+
+    <!-- Signed out -->
+    <section id="view-signed-out" class="view center" hidden>
+      <h1>Sign in to autofill</h1>
+      <p class="muted">Click the IamCandidate icon in the toolbar and sign in. This panel picks it up right away.</p>
+    </section>
+
+    <section id="view-main" class="view" hidden>
+      <div class="segmented" role="tablist">
+        <button id="tab-autofill" role="tab" type="button" aria-selected="true">Autofill</button>
+        <button id="tab-details" role="tab" type="button" aria-selected="false">My details</button>
+      </div>
+
+      <p id="main-error" class="alert error" hidden></p>
+
+      <!-- Autofill -->
+      <div id="pane-autofill" class="stack">
+        <article class="job-card">
+          <span id="job-mark" class="job-mark" aria-hidden="true"></span>
+          <div class="job-text">
+            <p id="job-role" class="job-role"></p>
+            <p id="job-meta" class="muted small"></p>
+          </div>
+        </article>
+
+        <button id="btn-autofill" class="btn primary block big" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12.5 9.5 17 19 7.5" />
+          </svg>
+          <span>Autofill this page</span>
+        </button>
+
+        <section class="card">
+          <div class="card-head">
+            <span class="card-title">Resume</span>
+            <button id="resume-edit" class="link small" type="button" hidden>Edit in IamCandidate</button>
+          </div>
+          <select id="resume-select" aria-label="Resume to use"></select>
+          <p id="resume-file" class="hint"></p>
+
+          <div id="match" class="match" hidden>
+            <div class="ring" aria-hidden="true">
+              <svg viewBox="0 0 44 44">
+                <circle class="ring-track" cx="22" cy="22" r="18" />
+                <circle id="match-arc" class="ring-arc" cx="22" cy="22" r="18" />
+              </svg>
+              <span id="match-score"></span>
+            </div>
+            <div class="match-text">
+              <p id="match-title" class="strong"></p>
+              <p id="match-detail" class="muted small"></p>
+            </div>
+          </div>
+          <details id="match-keywords" class="disclosure" hidden>
+            <summary>Keywords from this job</summary>
+            <ul id="keyword-list" class="keywords"></ul>
+          </details>
+          <p id="match-empty" class="hint" hidden></p>
+        </section>
+
+        <section id="run-card" class="card" hidden>
+          <div class="card-head">
+            <span id="run-title" class="card-title"></span>
+          </div>
+          <ol id="run-steps" class="steps"></ol>
+
+          <div id="run-results" hidden>
+            <div class="meter" aria-hidden="true"><span id="run-meter"></span></div>
+            <p class="list-head">Required <span id="required-count" class="muted"></span></p>
+            <ul id="required-list" class="field-list"></ul>
+            <p id="required-none" class="hint" hidden>This form doesn't mark any questions as required.</p>
+            <details id="run-optional" class="disclosure">
+              <summary>Other questions <span id="optional-count" class="muted"></span></summary>
+              <ul id="optional-list" class="field-list"></ul>
+            </details>
+            <p class="hint">
+              Click a question to jump to it. Check the form, then submit it with the page's own button.
+              Answers you type there are saved for next time.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Your details, typed into application forms -->
+      <form id="details-form" class="stack" novalidate hidden>
+        <fieldset class="group">
+          <legend>You</legend>
+          <label class="field">
+            <span class="label">Full name</span>
+            <input name="fullName" maxlength="200" autocomplete="name" />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Email</span>
+              <input name="email" type="email" maxlength="254" autocomplete="email" />
+            </label>
+            <label class="field">
+              <span class="label">Phone</span>
+              <input name="phone" type="tel" maxlength="40" autocomplete="tel" />
+            </label>
+          </div>
+          <label class="field">
+            <span class="label">City / location</span>
+            <input name="location" maxlength="200" />
+          </label>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Links</legend>
+          <label class="field">
+            <span class="label">LinkedIn</span>
+            <input name="linkedin" type="url" maxlength="2048" placeholder="https://www.linkedin.com/in/…" />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">GitHub</span>
+              <input name="github" type="url" maxlength="2048" />
+            </label>
+            <label class="field">
+              <span class="label">Portfolio / website</span>
+              <input name="portfolio" type="url" maxlength="2048" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Work</legend>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Current title</span>
+              <input name="currentTitle" maxlength="200" />
+            </label>
+            <label class="field">
+              <span class="label">Current company</span>
+              <input name="currentCompany" maxlength="200" />
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Years of experience</span>
+              <input name="experienceYears" maxlength="20" inputmode="decimal" />
+            </label>
+            <label class="field">
+              <span class="label">Notice period</span>
+              <input name="noticePeriod" maxlength="100" placeholder="e.g. 30 days" />
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span class="label">Current salary</span>
+              <input name="currentSalary" maxlength="100" />
+            </label>
+            <label class="field">
+              <span class="label">Expected salary</span>
+              <input name="expectedSalary" maxlength="100" />
+            </label>
+          </div>
+        </fieldset>
+
+        <details class="disclosure">
+          <summary>Summary &amp; cover letter</summary>
+          <div class="stack">
+            <label class="field">
+              <span class="label">Summary / about you</span>
+              <textarea name="summary" rows="4" maxlength="5000"></textarea>
+            </label>
+            <label class="field">
+              <span class="label">Cover letter</span>
+              <textarea name="coverLetter" rows="6" maxlength="20000"></textarea>
+            </label>
+          </div>
+        </details>
+        <details class="disclosure">
+          <summary>Saved answers <span id="answers-count" class="muted"></span></summary>
+          <p id="answers-empty" class="hint">
+            After you autofill a page, the questions you answer on that form are saved here and filled in
+            for you next time.
+          </p>
+          <ul id="answers-list" class="answer-list"></ul>
+        </details>
+        <p class="hint">Saved on this device only, and removed when you sign out.</p>
+      </form>
+    </section>
+  </body>
+</html>

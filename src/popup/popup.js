@@ -6,22 +6,15 @@ import {
   RELATIONSHIPS,
   WORK_MODES,
 } from "../lib/constants.js"
-import { fillPage } from "../lib/autofill.js"
 import { extractPage } from "../lib/extract.js"
 import {
-  ANSWERS_KEY,
-  AUTOFILL_KEY,
   clearAutofill,
   clearDraft,
   clearSession,
-  getAnswers,
-  getAutofill,
   getDraft,
   getLastApplicationId,
   getSession,
   getSettings,
-  saveAnswers,
-  saveAutofill,
   saveDraft,
   saveSettings,
   setLastApplicationId,
@@ -43,8 +36,6 @@ const state = {
   contacts: [],
   applications: [],
   resumes: [],
-  /** Answers learned from application forms, by question. */
-  answers: {},
   /** Loaded on first use of the LinkedIn message view. */
   templates: undefined,
   /** What the success view's buttons act on. */
@@ -58,7 +49,7 @@ const state = {
 const $ = (id) => document.getElementById(id)
 const jobForm = $("job-form")
 const referralForm = $("referral-form")
-const autofillForm = $("autofill-form")
+const autofillPane = $("autofill-pane")
 
 const VIEWS = ["view-loading", "view-login", "view-settings", "view-main", "view-success", "view-message"]
 
@@ -219,7 +210,7 @@ async function start({ keepDraft = true, mode } = {}) {
   renderSiteChip()
   fillStaticOptions()
   populateJob()
-  await Promise.all([populateReferral(), populateAutofill()])
+  await populateReferral()
 
   const draft = keepDraft ? await getDraft(state.tab?.url) : undefined
   if (draft) {
@@ -591,112 +582,13 @@ async function saveReferral() {
 /* Autofill                                                            */
 /* ------------------------------------------------------------------ */
 
-const userKey = () => state.session?.user?.id ?? state.session?.user?.email
-
-/** Your saved details, or a first set from your IamCandidate profile. */
-async function populateAutofill() {
-  autofillForm.reset()
-  setAlert($("autofill-result"), "")
-  const [saved, answers] = await Promise.all([getAutofill(userKey()), getAnswers(userKey())])
-  state.answers = answers
-  renderAnswers()
-  if (saved) return writeForm(autofillForm, saved)
-  const user = state.session?.user ?? {}
-  const profile = await api.getProfile().catch(() => ({}))
-  writeForm(autofillForm, {
-    fullName: profile.name || user.name || "",
-    email: profile.email || user.email || "",
-    location: profile.location ?? "",
-    currentTitle: profile.role ?? "",
-    summary: profile.bio ?? "",
-  })
-}
-
-function renderAnswers() {
-  const entries = Object.entries(state.answers).sort(([, a], [, b]) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
-  $("answers-count").textContent = entries.length ? `· ${entries.length}` : ""
-  $("answers-empty").hidden = entries.length > 0
-  $("answers-list").replaceChildren(
-    ...entries.map(([question, answer]) => {
-      const item = document.createElement("li")
-      const text = Object.assign(document.createElement("div"), { className: "answer-text" })
-      const label = Object.assign(document.createElement("p"), { className: "strong", textContent: answer.label })
-      const value = Object.assign(document.createElement("p"), { className: "muted", textContent: answer.value })
-      label.title = answer.label
-      value.title = answer.value
-      text.append(label, value)
-      const remove = Object.assign(document.createElement("button"), {
-        type: "button",
-        className: "icon-btn",
-        textContent: "×",
-        title: "Forget this answer",
-      })
-      remove.setAttribute("aria-label", `Forget the answer to “${answer.label}”`)
-      remove.addEventListener("click", async () => {
-        delete state.answers[question]
-        renderAnswers()
-        await saveAnswers(userKey(), state.answers)
-      })
-      item.append(text, remove)
-      return item
-    }),
-  )
-}
-
-let autofillTimer
-function scheduleAutofillSave() {
-  clearTimeout(autofillTimer)
-  autofillTimer = setTimeout(() => {
-    saveAutofill(userKey(), readForm(autofillForm)).catch(() => {})
-  }, 250)
-}
-
-async function fillCurrentPage() {
-  const details = readForm(autofillForm)
-  const errors = []
-  if (details.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email)) errors.push("email")
-  for (const name of ["linkedin", "github", "portfolio"]) {
-    if (details[name] && !isHttpUrl(details[name])) errors.push(name)
-  }
-  if (flagInvalid(autofillForm, errors)) return
-  setAlert($("autofill-result"), "")
-
-  clearTimeout(autofillTimer)
-  await saveAutofill(userKey(), details)
-
-  const tab = state.tab
-  if (!tab?.id || !isHttpUrl(tab.url)) {
-    return setAlert($("main-error"), "This page can't be filled by extensions.")
-  }
-  const button = $("btn-save")
-  setBusy(button, true, "Filling…")
-  try {
-    // Application forms are often embedded in an iframe (Greenhouse, Lever…);
-    // frames Chrome won't let us into are skipped.
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      func: fillPage,
-      args: [details, state.answers, { userId: userKey(), detailsKey: AUTOFILL_KEY, answersKey: ANSWERS_KEY }],
-    })
-    const filled = results.flatMap((r) => r?.result?.filled ?? [])
-    if (!filled.length) {
-      return setAlert(
-        $("main-error"),
-        "No empty fields here matched your details. Answer this form yourself and IamCandidate will remember your answers for next time.",
-      )
-    }
-    const labels = filled.map((f) => f.label)
-    const fromAnswers = filled.filter((f) => f.key === "answer").length
-    setAlert(
-      $("autofill-result"),
-      `Filled ${filled.length} field${filled.length === 1 ? "" : "s"} (outlined in green)${fromAnswers ? `, ${fromAnswers} from your saved answers` : ""}: ${labels.slice(0, 6).join(", ")}${labels.length > 6 ? "…" : ""}. Check them, add your resume, then submit the form yourself. New answers you type on this form are saved for next time.`,
-    )
-  } catch (error) {
-    console.warn("IamCandidate: could not fill the page", error)
-    setAlert($("main-error"), "This page can't be filled by extensions.")
-  } finally {
-    setBusy(button, false)
-  }
+/** Opens the side panel for this window. Must run inside the click: Chrome
+ * only opens a side panel during a user gesture. */
+function openAutofillPanel() {
+  chrome.sidePanel
+    .open({ windowId: state.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT })
+    .then(() => window.close())
+    .catch((error) => setAlert($("main-error"), `Couldn't open the side panel: ${error.message}`))
 }
 
 /* ------------------------------------------------------------------ */
@@ -769,21 +661,16 @@ function setMode(mode) {
   $("tab-autofill").setAttribute("aria-selected", String(mode === "autofill"))
   jobForm.hidden = mode !== "job"
   referralForm.hidden = mode !== "referral"
-  autofillForm.hidden = mode !== "autofill"
+  autofillPane.hidden = mode !== "autofill"
   $("btn-save").textContent =
-    mode === "job" ? "Save application" : mode === "referral" ? "Add referral" : "Fill this page"
+    mode === "job" ? "Save application" : mode === "referral" ? "Add referral" : "Open autofill panel"
   $("btn-message").hidden = mode !== "referral"
   $("btn-reread").hidden = mode === "autofill"
   setAlert($("main-error"), "")
 
   const banner = $("detect-banner")
   if (mode === "autofill") {
-    setAlert(
-      banner,
-      state.page.blocked
-        ? "This page can't be filled by extensions."
-        : "Open a job's application form, then fill in your details with one click.",
-    )
+    setAlert(banner, "")
   } else if (mode === "job") {
     setAlert(banner, jobBanner())
   } else if (state.page.kind === "profile") {
@@ -824,7 +711,7 @@ function handleError(error) {
     show("view-main")
     jobForm.hidden = true
     referralForm.hidden = true
-    autofillForm.hidden = true
+    autofillPane.hidden = true
   }
   setAlert($("main-error"), message)
 }
@@ -1062,22 +949,6 @@ function wireEvents() {
     scheduleDraftSave()
   })
 
-  autofillForm.addEventListener("submit", (event) => {
-    event.preventDefault()
-    $("btn-save").click()
-  })
-  autofillForm.addEventListener("input", (event) => {
-    event.target.closest(".field")?.classList.remove("invalid")
-    scheduleAutofillSave()
-  })
-  // The form filler saves answers from the page; keep the list current while the popup is open.
-  chrome.storage.onChanged.addListener((changes, area) => {
-    const saved = changes[ANSWERS_KEY]?.newValue
-    if (area !== "local" || !changes[ANSWERS_KEY] || !state.session) return
-    state.answers = saved?.userId === userKey() ? (saved.answers ?? {}) : {}
-    renderAnswers()
-  })
-
   for (const form of [jobForm, referralForm]) {
     form.addEventListener("submit", (event) => {
       event.preventDefault()
@@ -1098,7 +969,7 @@ function wireEvents() {
   }
 
   $("btn-save").addEventListener("click", () =>
-    state.mode === "job" ? saveJob() : state.mode === "referral" ? saveReferral() : fillCurrentPage(),
+    state.mode === "job" ? saveJob() : state.mode === "referral" ? saveReferral() : openAutofillPanel(),
   )
   $("btn-reread").addEventListener("click", async () => {
     await clearDraft()

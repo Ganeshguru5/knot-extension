@@ -141,6 +141,9 @@ export const api = {
   createApplication: (input) => send("POST", "/applications", input),
 
   listResumes: () => send("GET", "/resumes"),
+  getDocument: (id) => send("GET", `/documents/${enc(id)}`),
+  /** `{ url, expiresIn }`: a short-lived link to the stored file. */
+  getDocumentDownloadUrl: (id) => send("GET", `/documents/${enc(id)}/download-url`),
 
   listReferrals: () => send("GET", "/referrals"),
   createReferral: (input) => send("POST", "/referrals", input),

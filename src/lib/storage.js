@@ -17,7 +17,7 @@ export const DEFAULT_SETTINGS = {
 const OLD_DEFAULT_APP_URL = "http://localhost:3000"
 
 const SETTINGS_KEY = "iamcandidate:settings"
-const SESSION_KEY = "iamcandidate:session"
+export const SESSION_KEY = "iamcandidate:session"
 const DRAFT_KEY = "iamcandidate:draft"
 
 const trimSlash = (url) => String(url ?? "").trim().replace(/\/+$/, "")
@@ -113,4 +113,26 @@ export async function saveAnswers(userId, answers) {
 
 export async function clearAutofill() {
   await chrome.storage.local.remove([AUTOFILL_KEY, ANSWERS_KEY])
+}
+
+const JOBS_KEY = "iamcandidate:jobs"
+/** How long a job you looked at is remembered for its application form. */
+const JOB_TTL_MS = 2 * 60 * 60 * 1000
+
+/** Remembers the posting read in a tab, so its application form (often a
+ * separate page without the description) can still be matched to your resume. */
+export async function rememberJob(tabId, job) {
+  const { [JOBS_KEY]: jobs = {} } = await chrome.storage.session.get(JOBS_KEY)
+  const now = Date.now()
+  const kept = Object.fromEntries(Object.entries(jobs).filter(([, entry]) => now - entry.at < JOB_TTL_MS))
+  await chrome.storage.session.set({ [JOBS_KEY]: { ...kept, [tabId]: { job, at: now } } })
+}
+
+/** The posting last read in this tab, else the one read most recently in any tab. */
+export async function recallJob(tabId) {
+  const { [JOBS_KEY]: jobs = {} } = await chrome.storage.session.get(JOBS_KEY)
+  const fresh = Object.entries(jobs).filter(([, entry]) => Date.now() - entry.at < JOB_TTL_MS)
+  const own = fresh.find(([id]) => id === String(tabId))
+  const latest = fresh.sort(([, a], [, b]) => b.at - a.at)[0]
+  return (own ?? latest)?.[1].job
 }

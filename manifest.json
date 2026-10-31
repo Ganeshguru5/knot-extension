@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "IamCandidate — Job & Referral Capture",
   "short_name": "IamCandidate",
-  "version": "1.3.0",
-  "description": "Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details.",
+  "version": "1.4.0",
+  "description": "Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details and resume.",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Save to IamCandidate (Alt+K)",
@@ -27,7 +27,8 @@
       "description": "Open IamCandidate on the current page"
     }
   },
-  "permissions": ["activeTab", "scripting", "storage"],
+  "side_panel": { "default_path": "src/panel/panel.html" },
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": ["https://ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com/*"],
-  "optional_host_permissions": ["http://localhost/*", "http://127.0.0.1/*"]
+  "optional_host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "https://*/*", "http://*/*"]
 }

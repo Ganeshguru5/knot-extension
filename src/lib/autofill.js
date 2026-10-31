@@ -3,16 +3,18 @@
  * and the answers you gave on earlier forms, then learns from what you type.
  *
  * Injected with
- * `chrome.scripting.executeScript({ func: fillPage, args: [details, answers, store] })`,
+ * `chrome.scripting.executeScript({ func: fillPage, args: [details, answers, store, resume] })`,
  * so it is serialized and runs inside the page (as a content script): it must
  * stay fully self-contained (no imports, no references to anything outside
  * this function). `store` is `{ userId, detailsKey, answersKey }`: where in
- * `chrome.storage.local` to save what it learns.
+ * `chrome.storage.local` to save what it learns. `resume` is
+ * `{ name, type, base64 }`, attached to the form's resume upload, or undefined.
  *
- * It only types into fields and picks radio options. It never clicks a button,
+ * It only types into fields, picks options (radios, and the option list of a
+ * searchable dropdown) and attaches your resume. It never clicks a button,
  * presses Enter, or calls `form.submit()` / `requestSubmit()`: you review the
  * form and submit it yourself. Fields that already have a value are left
- * alone, and so are passwords, file uploads, checkboxes and sign-in forms.
+ * alone, and so are passwords, checkboxes, other file uploads and sign-in forms.
  *
  * Learning: once it has run in a frame, every question you answer there is
  * saved. A field that is one of your details (phone, notice period…) fills
@@ -20,9 +22,12 @@
  * keyed by its label, and filled on the next form that asks the same thing.
  * Sensitive fields (IDs, card numbers, codes) are never saved.
  *
- * Returns `{ filled: [{ key, label }], frame }` for this frame.
+ * Resolves to `{ fields: [{ id, label, required, status, key }], frame }` for
+ * this frame: every question it found, `status` "filled" (by this run), "had"
+ * (already answered) or "empty". Each field is tagged with
+ * `data-iamcandidate-field="<id>"` so {@link focusField} can find it.
  */
-export function fillPage(details, answers = {}, store = undefined) {
+export async function fillPage(details, answers = {}, store = undefined, resume = undefined) {
   const clean = (value) =>
     String(value ?? "")
       .replace(/ /g, " ")
@@ -167,10 +172,18 @@ export function fillPage(details, answers = {}, store = undefined) {
     "reset", "image", "search", "range", "color", "date", "datetime-local", "month", "week", "time",
   ])
 
+  /** A text box that opens a list of options as you type (location, pronouns…). */
+  const isCombobox = (el) =>
+    el.tagName === "INPUT" &&
+    (el.getAttribute("role") === "combobox" ||
+      /list|both/.test(el.getAttribute("aria-autocomplete") ?? "") ||
+      el.getAttribute("aria-haspopup") === "listbox")
+
   /** Fields we fill and learn from (radios are handled as groups). */
   const usable = (el) => {
     if (el.disabled || el.readOnly) return false
-    if (el.tagName === "INPUT" && SKIP_TYPES.has((el.type || "text").toLowerCase())) return false
+    const type = (el.type || "text").toLowerCase()
+    if (el.tagName === "INPUT" && SKIP_TYPES.has(type) && !(type === "search" && isCombobox(el))) return false
     // Sign-in and sign-up forms aren't applications.
     return !el.form?.querySelector('input[type="password"]')
   }
@@ -182,10 +195,12 @@ export function fillPage(details, answers = {}, store = undefined) {
     return box.width > 0 && box.height > 0
   }
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
   /** React, Vue and Angular track the value through the prototype setter, so
    * set it there and announce it with the events they listen to. No key events:
    * an Enter could submit the form. */
-  const setValue = (el, value) => {
+  const setValue = (el, value, { blur = true } = {}) => {
     const proto =
       el.tagName === "TEXTAREA"
         ? HTMLTextAreaElement.prototype
@@ -195,7 +210,62 @@ export function fillPage(details, answers = {}, store = undefined) {
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value)
     el.dispatchEvent(new Event("input", { bubbles: true }))
     el.dispatchEvent(new Event("change", { bubbles: true }))
-    el.dispatchEvent(new FocusEvent("blur"))
+    if (blur) el.dispatchEvent(new FocusEvent("blur"))
+  }
+
+  /** Mouse events in the order a real click sends them; dropdown libraries
+   * often pick an option on mousedown, not click. */
+  const press = (target) => {
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+      const Ctor = type.startsWith("pointer") && globalThis.PointerEvent ? PointerEvent : MouseEvent
+      target.dispatchEvent(new Ctor(type, { bubbles: true, cancelable: true, view: window }))
+    }
+    target.click()
+  }
+
+  /** The options a combobox is showing: its own listbox, or any open one. */
+  const optionsFor = (el) => {
+    const ids = `${el.getAttribute("aria-controls") ?? ""} ${el.getAttribute("aria-owns") ?? ""}`
+      .split(/\s+/)
+      .filter(Boolean)
+    const own = ids.map((id) => document.getElementById(id)).filter(Boolean)
+    const lists = own.length ? own : [...document.querySelectorAll('[role="listbox"]')].filter(visible)
+    return lists
+      .flatMap((list) => [...list.querySelectorAll('[role="option"]')])
+      .filter((option) => visible(option) && option.getAttribute("aria-disabled") !== "true")
+  }
+
+  const bestOption = (options, value) => {
+    const want = clean(value).toLowerCase()
+    const text = (option) => textOf(option).toLowerCase()
+    return (
+      options.find((o) => text(o) === want) ??
+      options.find((o) => text(o).startsWith(want)) ??
+      options.find((o) => {
+        const label = text(o)
+        return label.length > 1 && (label.includes(want) || want.includes(label))
+      })
+    )
+  }
+
+  /** Types into a combobox and picks the matching option. When nothing
+   * matches, the text is cleared again: a half-typed search isn't an answer. */
+  const pickOption = async (el, value) => {
+    el.focus()
+    press(el)
+    setValue(el, value, { blur: false })
+    for (let waited = 0; waited < 2000; waited += 100) {
+      await sleep(100)
+      const option = bestOption(optionsFor(el), value)
+      if (option) {
+        press(option)
+        await sleep(150)
+        el.dispatchEvent(new FocusEvent("blur"))
+        return true
+      }
+    }
+    setValue(el, "")
+    return false
   }
 
   /** The option whose text or value matches, e.g. "India" in a country list. */
@@ -219,12 +289,130 @@ export function fillPage(details, answers = {}, store = undefined) {
     el.addEventListener("input", () => (el.style.outline = previous), { once: true })
   }
 
-  const filled = []
+  /* ---------------- what was asked, and how it went ---------------- */
+
+  const fields = []
+  const run = Math.random().toString(36).slice(2, 8)
+  const shown = (label) =>
+    clean(label)
+      .replace(/\((required|optional)\)/gi, "")
+      .replace(/[\s*]+$/, "")
+      .slice(0, 120)
+  const requiredOf = (el, label) =>
+    el.required ||
+    el.getAttribute("aria-required") === "true" ||
+    !!el.closest('[aria-required="true"]') ||
+    /\*/.test(label)
+  const track = (el, label, required, status, key) => {
+    const id = `${run}-${fields.length}`
+    el.setAttribute("data-iamcandidate-field", id)
+    fields.push({ id, label: shown(label) || "Untitled question", required, status, key })
+  }
+  // Custom-styled radios and checkboxes hide the input and show its label.
+  const onPage = (el) => visible(el) || [...(el.labels ?? [])].some(visible)
+  const fold = (text) =>
+    String(text ?? "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+
+  /* ---------------- resume ---------------- */
+
+  const uploads = [...document.querySelectorAll('input[type="file"]')].filter(
+    (input) => !input.disabled && !input.form?.querySelector('input[type="password"]'),
+  )
+  const aboutUpload = (input) =>
+    fold(
+      [labelOf(input), input.name, input.id, input.getAttribute("data-qa"), input.getAttribute("data-testid")]
+        .filter(Boolean)
+        .join(" "),
+    )
+  const resumeInput =
+    uploads.find((input) => /resume|\bcv\b|curriculum/.test(aboutUpload(input)) && !/cover/.test(aboutUpload(input))) ??
+    uploads.find(
+      (input) =>
+        !/cover|photo|picture|image|avatar|transcript|certificate/.test(aboutUpload(input)) &&
+        (!input.accept || /pdf|doc/.test(input.accept)),
+    )
+
+  let attached = false
+  if (resume?.base64 && resumeInput && !resumeInput.files?.length) {
+    try {
+      const bytes = Uint8Array.from(atob(resume.base64), (c) => c.charCodeAt(0))
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([bytes], resume.name, { type: resume.type }))
+      resumeInput.files = transfer.files
+      resumeInput.dispatchEvent(new Event("input", { bubbles: true }))
+      resumeInput.dispatchEvent(new Event("change", { bubbles: true }))
+      attached = true
+      // Many ATSs read the resume and fill fields from it; let that start first.
+      await sleep(1500)
+    } catch {
+      // The site rejected a programmatic file; it's listed for you to attach.
+    }
+  }
+
+  /* ---------------- filling, in page order ---------------- */
+
+  const groups = new Set()
   for (const el of document.querySelectorAll("input, textarea, select")) {
+    const type = (el.type || "").toLowerCase()
+
+    if (el.tagName === "INPUT" && type === "file") {
+      if (!uploads.includes(el)) continue
+      let label = labelOf(el)
+      if (!label || /^(drop|select|browse|upload|attach|choose)\b/i.test(label)) {
+        label = el === resumeInput ? "Resume" : "File upload"
+      }
+      const status = el === resumeInput && attached ? "filled" : el.files?.length ? "had" : "empty"
+      track(el, label, requiredOf(el, label), status, el === resumeInput ? "resume" : undefined)
+      continue
+    }
+
+    // Yes/no and multiple-choice questions you answered before.
+    if (el.tagName === "INPUT" && type === "radio") {
+      const group = groupOf(el)
+      if (!group || groups.has(group)) continue
+      groups.add(group)
+      const options = [...group.querySelectorAll('input[type="radio"]')].filter((r) => !r.disabled && onPage(r))
+      if (!options.length) continue
+      const label = groupLabelOf(el)
+      const required =
+        options.some((r) => r.required) || group.getAttribute("aria-required") === "true" || /\*/.test(label)
+      if (options.some((r) => r.checked)) {
+        track(options[0], label, required, "had")
+        continue
+      }
+      const want = clean(savedAnswer(label)).toLowerCase()
+      const choice = want && options.find((r) => optionLabelOf(r).toLowerCase() === want)
+      if (choice) {
+        // A radio can't submit a form; clicking it is how frameworks expect it to change.
+        choice.click()
+        mark(choice.labels?.[0] ?? choice)
+      }
+      track(options[0], label, required, choice ? "filled" : "empty", choice ? "answer" : undefined)
+      continue
+    }
+
+    // Consent boxes are yours to tick; required ones are listed so you don't miss them.
+    if (el.tagName === "INPUT" && type === "checkbox") {
+      if (el.disabled || !onPage(el) || groupOf(el)) continue
+      const label = el.labels?.length ? labelText(el.labels[0]) : labelOf(el)
+      if (requiredOf(el, label)) track(el, label, true, el.checked ? "had" : "empty")
+      continue
+    }
+
     if (!usable(el) || !visible(el)) continue
 
     const key = keyFor(el)
     const label = labelOf(el)
+    const required = requiredOf(el, label)
+    const had = el.tagName === "SELECT" ? !!el.value && el.selectedIndex > 0 : !!el.value.trim()
+    if (had) {
+      track(el, label, required, "had", key)
+      continue
+    }
+
     let value = clean(key ? values[key] : "")
     let raw = key === "summary" || key === "coverLetter" ? String(details[key] ?? "").trim() : value
     if (!value) {
@@ -232,38 +420,23 @@ export function fillPage(details, answers = {}, store = undefined) {
       value = clean(answer)
       raw = String(answer ?? "").trim()
     }
-    if (!value) continue
 
-    if (el.tagName === "SELECT") {
-      if (el.value && el.selectedIndex > 0) continue
+    let done = false
+    if (value && el.tagName === "SELECT") {
       const option = matchOption(el, value)
-      if (!option) continue
-      setValue(el, option.value)
-    } else {
-      if (el.value.trim()) continue
+      if (option) {
+        setValue(el, option.value)
+        done = true
+      }
+    } else if (value && isCombobox(el)) {
+      done = await pickOption(el, value)
+    } else if (value) {
       const max = el.maxLength > 0 ? el.maxLength : Infinity
       setValue(el, (el.tagName === "TEXTAREA" ? raw : value).slice(0, max))
+      done = true
     }
-    mark(el)
-    filled.push({ key: key && values[key] ? key : "answer", label: clean(label).slice(0, 80) || key })
-  }
-
-  // Yes/no and multiple-choice questions you answered before.
-  const groups = new Set()
-  for (const radio of document.querySelectorAll('input[type="radio"]')) {
-    const group = groupOf(radio)
-    if (!group || groups.has(group)) continue
-    groups.add(group)
-    const options = [...group.querySelectorAll('input[type="radio"]')].filter((r) => !r.disabled && visible(r))
-    if (!options.length || options.some((r) => r.checked)) continue
-    const label = groupLabelOf(radio)
-    const want = clean(savedAnswer(label)).toLowerCase()
-    const choice = want && options.find((r) => optionLabelOf(r).toLowerCase() === want)
-    if (!choice) continue
-    // A radio can't submit a form; clicking it is how frameworks expect it to change.
-    choice.click()
-    mark(choice.labels?.[0] ?? choice)
-    filled.push({ key: "answer", label: label.slice(0, 80) })
+    if (done) mark(el)
+    track(el, label, required, done ? "filled" : "empty", done && !(key && values[key]) ? "answer" : key)
   }
 
   /* ---------------- learning ---------------- */
@@ -337,5 +510,30 @@ export function fillPage(details, answers = {}, store = undefined) {
     }
   }
 
-  return { filled, frame: location.hostname }
+  return { fields, frame: location.hostname }
+}
+
+/**
+ * Scrolls to a field {@link fillPage} listed and puts the cursor in it.
+ * Injected the same way, so it is self-contained too. Resolves to whether
+ * the field is still on the page.
+ */
+export function focusField(id) {
+  const el = document.querySelector(`[data-iamcandidate-field="${CSS.escape(id)}"]`)
+  if (!el) return false
+  // Hidden inputs (file drop zones, styled radios) scroll to what shows them.
+  let target = el
+  while (target && target !== document.body) {
+    const box = target.getBoundingClientRect()
+    if (box.width > 0 && box.height > 0) break
+    target = target.parentElement
+  }
+  target = target && target !== document.body ? target : el
+  target.scrollIntoView({ block: "center", behavior: "smooth" })
+  el.focus?.({ preventScroll: true })
+  const previous = target.style.boxShadow
+  target.style.transition = "box-shadow 0.3s"
+  target.style.boxShadow = "0 0 0 3px oklch(0.75 0.15 70 / 0.7)"
+  setTimeout(() => (target.style.boxShadow = previous), 1600)
+  return true
 }
