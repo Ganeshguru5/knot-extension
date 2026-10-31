@@ -129,6 +129,10 @@ export const api = {
   },
   me: () => send("GET", "/auth/me"),
   getProfile: () => send("GET", "/settings/profile"),
+  /** Your autofill details and saved answers (Career → Autofill in the web app). */
+  getAutofillProfile: () => send("GET", "/settings/autofill"),
+  /** `{ details, answers }` learned from a form: details fill empty fields, answers are upserted. */
+  learnAutofill: (body) => send("POST", "/settings/autofill/learn", body),
 
   listCompanies: () => send("GET", "/companies"),
   createCompany: (input) => send("POST", "/companies", input),

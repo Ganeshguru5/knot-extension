@@ -112,7 +112,7 @@ export async function saveAnswers(userId, answers) {
 }
 
 export async function clearAutofill() {
-  await chrome.storage.local.remove([AUTOFILL_KEY, ANSWERS_KEY])
+  await chrome.storage.local.remove([AUTOFILL_KEY, ANSWERS_KEY, "iamcandidate:learned"])
 }
 
 const JOBS_KEY = "iamcandidate:jobs"

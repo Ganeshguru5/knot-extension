@@ -117,6 +117,31 @@ body {
   outline-offset: 2px;
 }
 
+/* ---------- your details ---------- */
+
+.details-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.details-summary dt {
+  color: var(--muted);
+}
+
+.details-summary dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-summary dd.empty {
+  color: var(--missing);
+}
+
 /* ---------- cards ---------- */
 
 .card {

@@ -6,8 +6,8 @@
  * `chrome.scripting.executeScript({ func: fillPage, args: [details, answers, store, resume] })`,
  * so it is serialized and runs inside the page (as a content script): it must
  * stay fully self-contained (no imports, no references to anything outside
- * this function). `store` is `{ userId, detailsKey, answersKey }`: where in
- * `chrome.storage.local` to save what it learns. `resume` is
+ * this function). `store` is `{ userId, learnKey }`: the `chrome.storage.local`
+ * key where it queues what it learns, for the extension to send to IamCandidate. `resume` is
  * `{ name, type, base64 }`, attached to the form's resume upload, or undefined.
  *
  * It only types into fields, picks options (radios, and the option list of a
@@ -45,8 +45,27 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
   // Most specific first: the first rule that matches a field wins.
   // `ac` is the HTML autocomplete token; `not` rules out look-alikes.
   const RULES = [
+    { key: "preferredName", re: /preferred (first )?name|nick ?name/ },
     { key: "linkedin", re: /linked\s?in/ },
     { key: "github", re: /git\s?hub/ },
+    // Yes/no eligibility questions; the profile holds "yes" or "no".
+    { key: "needsSponsorship", re: /sponsor/ },
+    { key: "workAuthorization", re: /authori[sz]ed to work|work authori[sz]ation|eligible to work|legally (allowed|permitted|able|entitled) to work|right to work/ },
+    { key: "willingToRelocate", re: /relocat/ },
+    // Voluntary self-identification: filled only when you've chosen an answer.
+    { key: "gender", re: /\bgender\b|\bsex\b/ },
+    { key: "ethnicity", re: /ethnic|\brace\b/ },
+    { key: "disability", re: /disabilit/ },
+    { key: "veteran", re: /veteran/ },
+    { key: "pronouns", re: /pronoun/ },
+    { key: "graduationYear", re: /graduat(ion|ed)? ?(year|date)|year of (graduation|passing)|passing year/ },
+    { key: "fieldOfStudy", re: /field of study|\bmajor\b|discipline|speciali[sz]ation/ },
+    { key: "degree", re: /\bdegree\b|qualification/, not: /year/ },
+    { key: "school", re: /\bschool\b|universit|college|institut/, not: /high school|year/ },
+    { key: "postalCode", ac: ["postal-code"], re: /\bzip\b|postal|post ?code|pin ?code/ },
+    { key: "addressLine", ac: ["street-address", "address-line1"], re: /street|address line|^address\b/, not: /e-?mail|ip address|web/ },
+    { key: "state", ac: ["address-level1"], re: /^state\b|\bstate\/|province|^region\b/ },
+    { key: "country", ac: ["country", "country-name"], re: /\bcountry\b/, not: /code|location|city/ },
     { key: "portfolio", re: /portfolio|personal (web)?site|website|blog|\burl\b/, not: /linkedin|github|company/ },
     { key: "email", ac: ["email"], re: /e-?mail/ },
     { key: "phone", ac: ["tel", "tel-national"], re: /phone|mobile|\bcell\b|contact (number|no)|\btel\b/, not: /country|code|ext(ension)?\b|type/ },
@@ -66,7 +85,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
 
   // Never saved, whatever the form asks.
   const SENSITIVE =
-    /password|passcode|\bpin\b|\bssn\b|social security|card (number|no)|credit card|debit card|\bcvv\b|\bcvc\b|expiry|iban|swift|routing|account (number|no)|aadhaa?r|\bpan\b|passport|national id|date of birth|\bdob\b|birth ?date|\botp\b|one.time|verification code|captcha|security (question|answer)/
+    /gender|\bsex\b|ethnic|\brace\b|disabilit|veteran|password|passcode|\bpin\b|\bssn\b|social security|card (number|no)|credit card|debit card|\bcvv\b|\bcvc\b|expiry|iban|swift|routing|account (number|no)|aadhaa?r|\bpan\b|passport|national id|date of birth|\bdob\b|birth ?date|\botp\b|one.time|verification code|captcha|security (question|answer)/
 
   const textOf = (el) => clean(el?.innerText ?? el?.textContent)
 
@@ -159,6 +178,13 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     return undefined
   }
 
+  /** The detail a question asks for, from its text alone (radio groups have no single field). */
+  const keyForText = (text) => {
+    const label = clean(text).toLowerCase()
+    const rule = RULES.find((r) => !r.textarea && r.re.test(label) && !r.not?.test(label))
+    return rule?.key
+  }
+
   /* ---------------- values ---------------- */
 
   const name = clean(details.fullName)
@@ -168,6 +194,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     fullName: name || clean(`${details.firstName ?? ""} ${details.lastName ?? ""}`),
     firstName: clean(details.firstName) || first,
     lastName: clean(details.lastName) || rest.join(" "),
+    location: clean(details.location) || clean(details.city),
   }
   const savedAnswer = (label) => answers?.[questionKey(label)]?.value
 
@@ -275,12 +302,21 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
   }
 
   /** The option whose text or value matches, e.g. "India" in a country list. */
+  /** "no" matches "No, I don't", not "Not a veteran". */
+  const startsWithWord = (label, want) =>
+    label.startsWith(want) && !/[\p{L}\p{N}]/u.test(label.charAt(want.length))
+
+  /** A radio option for an answer: exact, then at the start, then anywhere for longer answers. */
+  const choiceMatches = (label, want) =>
+    label === want || startsWithWord(label, want) || (want.length > 3 && label.includes(want))
+
   const matchOption = (select, value) => {
     const want = clean(value).toLowerCase()
     if (!want) return undefined
     const options = [...select.options].filter((o) => !o.disabled && o.value !== "")
     return (
       options.find((o) => clean(o.textContent).toLowerCase() === want || o.value.toLowerCase() === want) ??
+      options.find((o) => startsWithWord(clean(o.textContent).toLowerCase(), want)) ??
       options.find((o) => {
         const label = clean(o.textContent).toLowerCase()
         return label.length > 1 && (want.includes(label) || label.includes(want))
@@ -411,14 +447,15 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
         track(options[0], label, required, "had")
         continue
       }
-      const want = clean(savedAnswer(label)).toLowerCase()
-      const choice = want && options.find((r) => optionLabelOf(r).toLowerCase() === want)
+      const detail = keyForText(label)
+      const want = (clean(detail ? values[detail] : "") || clean(savedAnswer(label))).toLowerCase()
+      const choice = want && options.find((r) => choiceMatches(optionLabelOf(r).toLowerCase(), want))
       if (choice) {
         // A radio can't submit a form; clicking it is how frameworks expect it to change.
         choice.click()
         mark(choice.labels?.[0] ?? choice)
       }
-      track(options[0], label, required, choice ? "filled" : "empty", choice ? "answer" : undefined)
+      track(options[0], label, required, choice ? "filled" : "empty", detail && values[detail] ? detail : choice ? "answer" : detail)
       continue
     }
 
@@ -469,8 +506,10 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
 
   /* ---------------- learning ---------------- */
 
-  // Details the popup has a field for (first/last name are derived from the full name).
-  const DETAIL_KEYS = new Set(RULES.map((rule) => rule.key).filter((key) => key !== "firstName" && key !== "lastName"))
+  // Details your IamCandidate autofill profile has a field for (a full name
+  // can't be split reliably, so it isn't learned).
+  const DETAIL_KEYS = new Set(RULES.map((rule) => rule.key).filter((key) => key !== "fullName"))
+  const PROFILE_FIELD = { location: "city" }
 
   if (store?.userId && globalThis.chrome?.storage?.local) {
     // The listener stays installed in this frame; later runs only update where it saves.
@@ -479,28 +518,24 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
       globalThis.__iamcandidateLearning = true
       let queue = Promise.resolve()
 
+      // Queued for IamCandidate, which only fills a detail that's still empty
+      // there (what you type on one form may be specific to that job).
       const save = (key, label, value) => {
-        const { userId, detailsKey, answersKey } = globalThis.__iamcandidateStore ?? {}
-        if (!userId) return
+        const { userId, learnKey } = globalThis.__iamcandidateStore ?? {}
+        if (!userId || !learnKey) return
         queue = queue
           .then(async () => {
-            const stored = await chrome.storage.local.get([detailsKey, answersKey])
-            const ownDetails = stored[detailsKey]?.userId === userId ? stored[detailsKey].details : {}
+            const { [learnKey]: stored } = await chrome.storage.local.get(learnKey)
+            const own = stored?.userId === userId ? stored : { userId, details: {}, answers: [] }
             if (key) {
-              // Only fill in a missing detail: what you type on one form may be specific to that job.
-              if (clean(ownDetails?.[key])) return
-              await chrome.storage.local.set({
-                [detailsKey]: { userId, details: { ...ownDetails, [key]: value } },
-              })
-              return
+              const field = PROFILE_FIELD[key] ?? key
+              if (!clean(own.details[field])) own.details[field] = value
+            } else {
+              const asked = questionKey(label)
+              own.answers = own.answers.filter((a) => questionKey(a.question) !== asked)
+              own.answers.push({ question: clean(label).slice(0, 500), answer: value })
             }
-            const own = stored[answersKey]?.userId === userId ? stored[answersKey].answers : {}
-            await chrome.storage.local.set({
-              [answersKey]: {
-                userId,
-                answers: { ...own, [questionKey(label)]: { label: clean(label).slice(0, 200), value, savedAt: Date.now() } },
-              },
-            })
+            await chrome.storage.local.set({ [learnKey]: own })
           })
           .catch(() => {})
       }

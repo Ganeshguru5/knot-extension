@@ -30,10 +30,16 @@ someone's LinkedIn profile.
   first, each marked filled, already answered, or needing your answer; click one to jump to it.
   It never overwrites what's already typed, never touches passwords, checkboxes or sign-in forms,
   and never submits. Chrome asks once, on your first Autofill, for access to the sites you apply
-  on, so the panel keeps working as you move between pages. Edit your details under **My details**
-  in the panel; they're pre-filled from your IamCandidate profile the first time, saved on this
-  device, and removed when you sign out. Field matching is in
+  on, so the panel keeps working as you move between pages. Field matching is in
   [src/lib/autofill.js](src/lib/autofill.js), resume matching in [src/lib/match.js](src/lib/match.js).
+- **Your details live in IamCandidate:** everything it types comes from **Career → Autofill** in
+  the web app: contact, address, links, work, notice period and salary, work eligibility (yes/no),
+  education, optional voluntary self-identification, summary, cover letter, and saved answers to
+  other questions. It starts from your IamCandidate profile, and **Fill empty fields from resume**
+  there copies your role, years of experience, education and summary from a resume. The extension
+  loads it before each fill (using the copy on this device when offline), and the panel's
+  **My details** tab shows a summary with a link to edit it. The copy here is removed when you
+  sign out. Details and answers saved on this device by earlier versions are uploaded once.
 - **Fills forms automatically:** with **Fill forms automatically** on (the switch in the panel,
   on by default once you've allowed access to sites), a background script checks each page as it
   loads. When the page is a job application (it asks for your name, an email or phone, and has a
@@ -42,13 +48,12 @@ someone's LinkedIn profile.
   contact and sign-in forms are left alone, and nothing is ever submitted. The toolbar badge shows
   how many required questions still need you (✓ when none do), and the panel shows the full report
   when you open it. Turn the switch off to fill only when you click.
-- **It learns as you apply:** after you click **Autofill this page**, whatever you type into that
-  form is remembered. A detail you hadn't filled in yet (phone, notice period…) is added to your
-  details; any other question ("Are you authorized to work in India?", "How did you hear about
-  us?", dropdowns, yes/no choices) is saved as an answer and filled in the next time a form asks
-  the same question. Saved answers are listed under **Saved answers** in the panel's My details tab, where
-  you can forget any of them. Passwords, ID, card and bank numbers, dates of birth and one-time
-  codes are never saved.
+- **It learns as you apply:** after a form has been filled, whatever you type into it is sent to
+  your IamCandidate autofill profile a few seconds later. A detail you hadn't filled in yet (phone,
+  notice period…) is added to your details; any other question ("How did you hear about us?",
+  dropdowns, yes/no choices) is saved as an answer and filled in the next time a form asks the same
+  question. Review or delete saved answers in Career → Autofill. Passwords, ID, card and bank
+  numbers, dates of birth, one-time codes and voluntary self-identification answers are never saved.
 - Companies and contacts are matched to what's already in IamCandidate, by company name and by
   LinkedIn URL (or exact name). New ones are created only when there's no match.
 - Your unsaved input is kept if the popup closes (for example when you click the page to
@@ -120,6 +125,7 @@ src/lib/extract.js   page reader, injected on demand with chrome.scripting
 src/lib/autofill.js  application-form filler, injected on demand with chrome.scripting
 src/lib/match.js     resume-to-job keyword match
 src/lib/report.js    last fill per tab, and the toolbar badge
+src/lib/profile.js   your autofill profile from IamCandidate, and sending what forms teach it
 src/lib/resume-file.js  downloads your resume's file to attach it
 src/lib/storage.js   settings, session and autofill details (storage.local), drafts (storage.session)
 src/lib/constants.js status/work-mode/relationship options (same as the web app)

@@ -126,105 +126,30 @@
         </section>
       </div>
 
-      <!-- Your details, typed into application forms -->
-      <form id="details-form" class="stack" novalidate hidden>
-        <fieldset class="group">
-          <legend>You</legend>
-          <label class="field">
-            <span class="label">Full name</span>
-            <input name="fullName" maxlength="200" autocomplete="name" />
-          </label>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Email</span>
-              <input name="email" type="email" maxlength="254" autocomplete="email" />
-            </label>
-            <label class="field">
-              <span class="label">Phone</span>
-              <input name="phone" type="tel" maxlength="40" autocomplete="tel" />
-            </label>
+      <!-- Your details: kept in IamCandidate (Career → Autofill) -->
+      <div id="pane-details" class="stack" hidden>
+        <section class="card">
+          <div class="card-head">
+            <span class="card-title">Your details</span>
+            <button id="details-edit" class="link small" type="button">Edit in IamCandidate</button>
           </div>
-          <label class="field">
-            <span class="label">City / location</span>
-            <input name="location" maxlength="200" />
-          </label>
-        </fieldset>
-
-        <fieldset class="group">
-          <legend>Links</legend>
-          <label class="field">
-            <span class="label">LinkedIn</span>
-            <input name="linkedin" type="url" maxlength="2048" placeholder="https://www.linkedin.com/in/…" />
-          </label>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">GitHub</span>
-              <input name="github" type="url" maxlength="2048" />
-            </label>
-            <label class="field">
-              <span class="label">Portfolio / website</span>
-              <input name="portfolio" type="url" maxlength="2048" />
-            </label>
+          <dl id="details-summary" class="details-summary"></dl>
+          <p id="details-count" class="hint"></p>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <span class="card-title">Saved answers <span id="answers-count" class="muted"></span></span>
           </div>
-        </fieldset>
-
-        <fieldset class="group">
-          <legend>Work</legend>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Current title</span>
-              <input name="currentTitle" maxlength="200" />
-            </label>
-            <label class="field">
-              <span class="label">Current company</span>
-              <input name="currentCompany" maxlength="200" />
-            </label>
-          </div>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Years of experience</span>
-              <input name="experienceYears" maxlength="20" inputmode="decimal" />
-            </label>
-            <label class="field">
-              <span class="label">Notice period</span>
-              <input name="noticePeriod" maxlength="100" placeholder="e.g. 30 days" />
-            </label>
-          </div>
-          <div class="grid-2">
-            <label class="field">
-              <span class="label">Current salary</span>
-              <input name="currentSalary" maxlength="100" />
-            </label>
-            <label class="field">
-              <span class="label">Expected salary</span>
-              <input name="expectedSalary" maxlength="100" />
-            </label>
-          </div>
-        </fieldset>
-
-        <details class="disclosure">
-          <summary>Summary &amp; cover letter</summary>
-          <div class="stack">
-            <label class="field">
-              <span class="label">Summary / about you</span>
-              <textarea name="summary" rows="4" maxlength="5000"></textarea>
-            </label>
-            <label class="field">
-              <span class="label">Cover letter</span>
-              <textarea name="coverLetter" rows="6" maxlength="20000"></textarea>
-            </label>
-          </div>
-        </details>
-        <details class="disclosure">
-          <summary>Saved answers <span id="answers-count" class="muted"></span></summary>
           <p id="answers-empty" class="hint">
-            After you autofill a page, the questions you answer on that form are saved here and filled in
-            for you next time.
+            Answers you type on application forms are saved to IamCandidate and filled in for you next time.
           </p>
           <ul id="answers-list" class="answer-list"></ul>
-        </details>
-        <p class="hint">Saved on this device only, and removed when you sign out.</p>
-      </form>
+        </section>
+        <p class="hint">
+          Your details and answers live in IamCandidate under Career → Autofill, so every browser you sign in on
+          uses them. Edit or delete them there.
+        </p>
+      </div>
     </section>
   </body>
 </html>

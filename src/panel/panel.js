@@ -2,6 +2,7 @@ import { api, ApiError } from "../lib/api.js"
 import { fillPage, focusField } from "../lib/autofill.js"
 import { extractPage } from "../lib/extract.js"
 import { matchResume } from "../lib/match.js"
+import { LEARN_KEY, loadFillData } from "../lib/profile.js"
 import { getReport, reportKey, saveReport } from "../lib/report.js"
 import { RESUME_PREF_KEY, resumeFile } from "../lib/resume-file.js"
 import {
@@ -9,15 +10,11 @@ import {
   AUTOFILL_KEY,
   AUTO_FILL_KEY,
   SESSION_KEY,
-  getAnswers,
   getAutoFill,
-  getAutofill,
   getSession,
   getSettings,
   recallJob,
   rememberJob,
-  saveAnswers,
-  saveAutofill,
   setAutoFill,
 } from "../lib/storage.js"
 
@@ -41,6 +38,8 @@ const state = {
   readable: false,
   resumes: [],
   resumeId: "",
+  /** Your autofill details and saved answers, as the form filler reads them. */
+  details: {},
   answers: {},
   running: false,
 }
@@ -56,7 +55,6 @@ const pageWindowId = Number(new URLSearchParams(location.search).get("window")) 
 /* ------------------------------------------------------------------ */
 
 const $ = (id) => document.getElementById(id)
-const detailsForm = $("details-form")
 const VIEWS = ["view-loading", "view-signed-out", "view-main"]
 
 function show(view) {
@@ -83,19 +81,6 @@ const isHttpUrl = (value) => {
 }
 
 const userKey = () => state.session?.user?.id ?? state.session?.user?.email
-
-function readDetails() {
-  const values = {}
-  for (const [key, value] of new FormData(detailsForm)) values[key] = String(value).trim()
-  return values
-}
-
-function writeDetails(values) {
-  for (const [key, value] of Object.entries(values ?? {})) {
-    const input = detailsForm.elements.namedItem(key)
-    if (input && "value" in input) input.value = value ?? ""
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* Boot                                                                */
@@ -143,22 +128,12 @@ async function loadResumes() {
   select.disabled = !state.resumes.length
 }
 
-/** Your saved details, or a first set from your IamCandidate profile. */
+/** Your details and answers from IamCandidate (the copy on this device when offline). */
 async function loadDetails() {
-  detailsForm.reset()
-  const [saved, answers] = await Promise.all([getAutofill(userKey()), getAnswers(userKey())])
+  const { details, answers } = await loadFillData(userKey())
+  state.details = details
   state.answers = answers
-  renderAnswers()
-  if (saved) return writeDetails(saved)
-  const user = state.session?.user ?? {}
-  const profile = await api.getProfile().catch(() => ({}))
-  writeDetails({
-    fullName: profile.name || user.name || "",
-    email: profile.email || user.email || "",
-    location: profile.location ?? "",
-    currentTitle: profile.role ?? "",
-    summary: profile.bio ?? "",
-  })
+  renderDetails()
 }
 
 /* ------------------------------------------------------------------ */
@@ -315,8 +290,6 @@ async function runAutofill(access) {
   $("run-results").hidden = true
   $("run-title").textContent = "Autofilling this page…"
 
-  const details = readDetails()
-  await saveAutofill(userKey(), details)
   const resume = currentResume()
   const fetching = { label: "Getting your resume file", status: "active" }
   const filling = { label: "Finding the questions and filling your answers", status: "pending" }
@@ -325,7 +298,7 @@ async function runAutofill(access) {
 
   try {
     await access.catch(() => false)
-    const { file, skipped } = await resumeFile(resume)
+    const [{ file, skipped }] = await Promise.all([resumeFile(resume), loadDetails()])
     fetching.status = file ? "done" : "skipped"
     filling.status = "active"
     setSteps(steps)
@@ -335,7 +308,7 @@ async function runAutofill(access) {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       func: fillPage,
-      args: [details, state.answers, { userId: userKey(), detailsKey: AUTOFILL_KEY, answersKey: ANSWERS_KEY }, file],
+      args: [state.details, state.answers, { userId: userKey(), learnKey: LEARN_KEY }, file],
     })
     const fields = results.flatMap((r) => (r?.result?.fields ?? []).map((field) => ({ ...field, frameId: r.frameId })))
     await saveReport(tab.id, tab.url, fields)
@@ -430,36 +403,60 @@ async function renderAutoFill() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Saved answers                                                       */
+/* Your details                                                        */
 /* ------------------------------------------------------------------ */
 
-function renderAnswers() {
-  const entries = Object.entries(state.answers).sort(([, a], [, b]) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
+/** Shown in the summary; the rest are counted. */
+const SUMMARY = [
+  ["Name", (d) => d.fullName],
+  ["Email", (d) => d.email],
+  ["Phone", (d) => d.phone],
+  ["City", (d) => d.city],
+  ["LinkedIn", (d) => d.linkedin],
+  ["Current role", (d) => [d.currentTitle, d.currentCompany].filter(Boolean).join(" at ")],
+  ["Notice period", (d) => d.noticePeriod],
+  ["Expected salary", (d) => d.expectedSalary],
+]
+const NOT_DETAILS = new Set(["fullName", "location", "answers"])
+
+function renderDetails() {
+  const details = state.details ?? {}
+  $("details-summary").replaceChildren(
+    ...SUMMARY.flatMap(([label, read]) => {
+      const value = String(read(details) ?? "").trim()
+      return [
+        el("dt", { textContent: label }),
+        el("dd", { textContent: value || "Not set", className: value ? "" : "empty", title: value }),
+      ]
+    }),
+  )
+  const keys = Object.keys(details).filter((key) => !NOT_DETAILS.has(key))
+  const set = keys.filter((key) => String(details[key] ?? "").trim()).length
+  $("details-count").textContent = keys.length
+    ? `${set} of ${keys.length} details filled in. Questions without one are left for you on each form.`
+    : ""
+
+  const entries = Object.values(state.answers).sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
   $("answers-count").textContent = entries.length ? `· ${entries.length}` : ""
   $("answers-empty").hidden = entries.length > 0
   $("answers-list").replaceChildren(
-    ...entries.map(([question, answer]) => {
-      const text = el(
-        "div",
-        { className: "answer-text" },
-        el("p", { className: "strong", textContent: answer.label, title: answer.label }),
-        el("p", { className: "muted", textContent: answer.value, title: answer.value }),
-      )
-      const remove = el("button", {
-        type: "button",
-        className: "icon-btn",
-        textContent: "×",
-        title: "Forget this answer",
-      })
-      remove.setAttribute("aria-label", `Forget the answer to “${answer.label}”`)
-      remove.addEventListener("click", async () => {
-        delete state.answers[question]
-        renderAnswers()
-        await saveAnswers(userKey(), state.answers)
-      })
-      return el("li", {}, text, remove)
-    }),
+    ...entries.map((answer) =>
+      el(
+        "li",
+        {},
+        el(
+          "div",
+          { className: "answer-text" },
+          el("p", { className: "strong", textContent: answer.label, title: answer.label }),
+          el("p", { className: "muted", textContent: answer.value, title: answer.value }),
+        ),
+      ),
+    ),
   )
+}
+
+function openAutofillPage() {
+  chrome.tabs.create({ url: `${state.settings.appUrl}/career/autofill` })
 }
 
 /* ------------------------------------------------------------------ */
@@ -470,7 +467,7 @@ function setTab(name) {
   $("tab-autofill").setAttribute("aria-selected", String(name === "autofill"))
   $("tab-details").setAttribute("aria-selected", String(name === "details"))
   $("pane-autofill").hidden = name !== "autofill"
-  detailsForm.hidden = name !== "details"
+  $("pane-details").hidden = name !== "details"
 }
 
 function handleError(error) {
@@ -487,7 +484,6 @@ function handleError(error) {
 /* Events                                                              */
 /* ------------------------------------------------------------------ */
 
-let detailsTimer
 let readTimer
 /** Tabs fire several updates per navigation; read the page once it settles. */
 function scheduleRead() {
@@ -529,10 +525,10 @@ function wireEvents() {
     }
   })
 
-  detailsForm.addEventListener("submit", (event) => event.preventDefault())
-  detailsForm.addEventListener("input", () => {
-    clearTimeout(detailsTimer)
-    detailsTimer = setTimeout(() => saveAutofill(userKey(), readDetails()).catch(() => {}), 250)
+  $("details-edit").addEventListener("click", openAutofillPage)
+  // Coming back from editing them in IamCandidate.
+  window.addEventListener("focus", () => {
+    if (state.session && !state.running) void loadDetails().catch(() => {})
   })
 
   chrome.tabs.onActivated.addListener(scheduleRead)
@@ -554,15 +550,16 @@ function wireEvents() {
       return
     }
     if (!state.session) return
-    // The form filler learns from the page while you type.
+    // Refreshed from IamCandidate, e.g. after answers you typed on a form were saved there.
     if (changes[ANSWERS_KEY]) {
       const saved = changes[ANSWERS_KEY].newValue
       state.answers = saved?.userId === userKey() ? (saved.answers ?? {}) : {}
-      renderAnswers()
+      renderDetails()
     }
-    if (changes[AUTOFILL_KEY] && document.activeElement?.form !== detailsForm) {
+    if (changes[AUTOFILL_KEY]) {
       const saved = changes[AUTOFILL_KEY].newValue
-      if (saved?.userId === userKey()) writeDetails(saved.details)
+      state.details = saved?.userId === userKey() ? (saved.details ?? {}) : {}
+      renderDetails()
     }
   })
 }

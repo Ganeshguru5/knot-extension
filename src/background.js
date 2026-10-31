@@ -1,16 +1,9 @@
 import { api, originPattern } from "./lib/api.js"
 import { fillPage } from "./lib/autofill.js"
+import { LEARN_KEY, loadFillData, sendLearned } from "./lib/profile.js"
 import { clearReport, reportKey, saveReport } from "./lib/report.js"
 import { preferredResume, resumeFile } from "./lib/resume-file.js"
-import {
-  ANSWERS_KEY,
-  AUTOFILL_KEY,
-  getAnswers,
-  getAutoFill,
-  getAutofill,
-  getSession,
-  getSettings,
-} from "./lib/storage.js"
+import { getAutoFill, getSession, getSettings } from "./lib/storage.js"
 
 /**
  * Fills job application forms as soon as they open, without a click: when a
@@ -90,8 +83,7 @@ async function autoFill(tabId, url) {
   if (tab?.url !== url) return true
 
   const userId = session.user?.id ?? session.user?.email
-  const [saved, answers] = await Promise.all([getAutofill(userId), getAnswers(userId)])
-  const details = saved ?? { fullName: session.user?.name ?? "", email: session.user?.email ?? "" }
+  const { details, answers } = await loadFillData(userId)
   const target = { tabId, allFrames: true }
 
   const probes = await chrome.scripting.executeScript({
@@ -108,7 +100,7 @@ async function autoFill(tabId, url) {
     args: [
       details,
       answers,
-      { userId, detailsKey: AUTOFILL_KEY, answersKey: ANSWERS_KEY },
+      { userId, learnKey: LEARN_KEY },
       file,
       { onlyApplications: true },
     ],
@@ -146,3 +138,26 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   filled.delete(tabId)
   void chrome.storage.session.remove(reportKey(tabId))
 })
+
+/* What you type on application forms goes to your IamCandidate autofill
+ * profile. Sent a moment after you stop typing; after a failed send (offline),
+ * it waits a minute. */
+const SEND_AFTER_MS = 2500
+const RETRY_AFTER_MS = 60 * 1000
+let sendTimer
+let pausedUntil = 0
+
+function scheduleSend(delay = SEND_AFTER_MS) {
+  clearTimeout(sendTimer)
+  sendTimer = setTimeout(async () => {
+    if (Date.now() < pausedUntil) return scheduleSend(pausedUntil - Date.now())
+    const sent = await sendLearned().catch(() => false)
+    if (!sent) pausedUntil = Date.now() + RETRY_AFTER_MS
+  }, delay)
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[LEARN_KEY]?.newValue) scheduleSend()
+})
+// Anything left from before the browser closed.
+chrome.runtime.onStartup.addListener(() => scheduleSend())
