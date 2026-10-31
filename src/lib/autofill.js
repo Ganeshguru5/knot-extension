@@ -16,6 +16,10 @@
  * form and submit it yourself. Fields that already have a value are left
  * alone, and so are passwords, checkboxes, other file uploads and sign-in forms.
  *
+ * Checkboxes: a question answered by ticking several boxes ("Which
+ * locations are you open to?") is ticked from your saved answer, its options
+ * separated by ";". Consent and newsletter boxes are always yours to tick.
+ *
  * Work history: forms that ask for each job in its own block (title,
  * company, dates…) get your jobs in order, the first block your latest job.
  * It never clicks "Add another"; blocks the form doesn't show stay unfilled.
@@ -134,8 +138,8 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     return label
   }
 
-  /** A radio group's question: its <legend>, or the radiogroup's aria label. */
-  const groupOf = (radio) => radio.closest('fieldset, [role="radiogroup"]')
+  /** A radio or checkbox group's question: its <legend>, or the group's aria label. */
+  const groupOf = (radio) => radio.closest('fieldset, [role="radiogroup"], [role="group"]')
   const groupLabelOf = (radio) => {
     const group = groupOf(radio)
     if (!group) return ""
@@ -536,6 +540,28 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     }
   }
 
+  /* ---------------- checkbox questions ---------------- */
+
+  // Boxes that agree to something or sign you up: never ticked or learned.
+  const CONSENT =
+    /agree|consent|terms|privacy|acknowledg|certify|confirm|accept|declare|authori[sz]e|subscribe|newsletter|marketing|updates|alerts|notify|contact me/
+
+  /** A question answered with several boxes: `{ group, boxes, label }`, or undefined
+   * for a lone box, a consent group or a group without a question. */
+  const checkGroupOf = (box) => {
+    const group = groupOf(box)
+    if (!group) return undefined
+    const boxes = [...group.querySelectorAll('input[type="checkbox"]')].filter((b) => !b.disabled && onPage(b))
+    const label = groupLabelOf(box)
+    if (boxes.length < 2 || !questionKey(label) || CONSENT.test(label.toLowerCase())) return undefined
+    const options = boxes.map((b) => optionLabelOf(b).toLowerCase())
+    if (options.some((option) => CONSENT.test(option) || CURRENT_JOB.test(option))) return undefined
+    return { group, boxes, label }
+  }
+
+  /** A saved answer to a checkbox question lists its options, separated by ";" or new lines. */
+  const ANSWER_SPLIT = /\s*[;\n]\s*/
+
   /* ---------------- filling, in page order ---------------- */
 
   const groups = new Set()
@@ -581,7 +607,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
 
     // Consent boxes are yours to tick; required ones are listed so you don't miss them.
     if (el.tagName === "INPUT" && type === "checkbox") {
-      if (el.disabled || !onPage(el) || groupOf(el)) continue
+      if (el.disabled || !onPage(el)) continue
       const label = el.labels?.length ? labelText(el.labels[0]) : labelOf(el)
       // "I currently work here" on the nth job block, ticked for a current job.
       if (CURRENT_JOB.test(label.toLowerCase()) && !el.form?.querySelector('input[type="password"]')) {
@@ -594,6 +620,33 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
           // The end date fields it hides need a moment to go.
           await sleep(150)
         }
+        continue
+      }
+      // "Which of these…?": the boxes you ticked for the same question before.
+      const asked = checkGroupOf(el)
+      if (asked) {
+        if (groups.has(asked.group)) continue
+        groups.add(asked.group)
+        const { group, boxes } = asked
+        const required =
+          boxes.some((b) => b.required) || group.getAttribute("aria-required") === "true" || /\*/.test(asked.label)
+        if (boxes.some((b) => b.checked)) {
+          track(boxes[0], asked.label, required, "had")
+          continue
+        }
+        const wants = String(savedAnswer(asked.label) ?? "")
+          .split(ANSWER_SPLIT)
+          .map((want) => clean(want).toLowerCase())
+          .filter(Boolean)
+        const picks = boxes.filter((b) => {
+          const option = optionLabelOf(b).toLowerCase()
+          return wants.some((want) => option === want || startsWithWord(option, want))
+        })
+        for (const box of picks) {
+          box.click()
+          mark(box.labels?.[0] ?? box)
+        }
+        track(boxes[0], asked.label, required, picks.length ? "filled" : "empty", picks.length ? "answer" : undefined)
         continue
       }
       if (requiredOf(el, label)) track(el, label, true, el.checked ? "had" : "empty")
@@ -690,6 +743,19 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
             const label = groupLabelOf(el)
             const value = optionLabelOf(el)
             if (questionKey(label) && value && !SENSITIVE.test(label.toLowerCase())) save(undefined, label, value)
+            return
+          }
+          // Every box ticked in a checkbox question, as one answer.
+          if (el.type === "checkbox") {
+            if (el.disabled || el.form?.querySelector('input[type="password"]')) return
+            const asked = checkGroupOf(el)
+            if (!asked || SENSITIVE.test(asked.label.toLowerCase())) return
+            const value = asked.boxes
+              .filter((b) => b.checked)
+              .map(optionLabelOf)
+              .filter(Boolean)
+              .join("; ")
+            if (value) save(undefined, asked.label, value)
             return
           }
           if (!usable(el)) return
