@@ -1,14 +1,14 @@
 # Chrome Web Store listing — copy/paste values
 
 Developer account: ganeshguru8681@gmail.com
-Upload: `iamcandidate-extension-1.3.0.zip` (see the README's "Publishing" section)
+Upload: `iamcandidate-extension-1.4.0.zip` (see the README's "Publishing" section)
 
 ## Store listing tab
 
 **Name** (from manifest): IamCandidate — Job & Referral Capture
 
 **Summary** (from manifest description, max 132 chars):
-Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details.
+Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details and resume.
 
 **Category:** Productivity → Tools
 **Language:** English
@@ -22,13 +22,14 @@ While you're applying for a job, click the IamCandidate icon (or press Alt+K). T
 
 On a LinkedIn profile, add that person as a referral in one click. Their name, headline, current company and profile link are filled in for you, and you can link the referral to a job you've already saved.
 
-Filling in the application itself? Open the Autofill tab and click Fill this page. Your name, contact details, links, current role, experience, notice period and salary go into the matching empty fields. Nothing is overwritten or submitted: you check the form and submit it yourself. Answers you type into a form are remembered, so the next application that asks the same question is filled in for you.
+Filling in the application itself? Open the autofill panel beside the page. It shows the job, how well your resume matches its keywords, and an Autofill button that attaches your resume and puts your name, contact details, links, current role, experience, notice period and salary into the matching empty fields, including searchable dropdowns. Then it lists every question on the form, with the required ones still waiting for you called out; click one to jump to it. Nothing is overwritten or submitted: you check the form and submit it yourself. Answers you type into a form are remembered, so the next application that asks the same question is filled in for you.
 
 • Works on popular job boards and most company career pages
 • Warns you when a job is already saved
 • Matches existing companies and contacts instead of creating duplicates
 • Keeps your unsaved input if the popup closes
-• Reads a page only when you open the extension on it
+• Resume match score for each job
+• Reads a page only when you open the extension or the autofill panel
 
 Requires a IamCandidate account.
 ```
@@ -45,10 +46,12 @@ Help the user apply for jobs: save job postings and LinkedIn referral contacts f
 
 | Permission | Justification |
 | --- | --- |
-| `activeTab` | Gives access to the current tab only when the user opens the extension, so it can read the job posting or LinkedIn profile they're looking at, or fill the application form there when they click Fill this page. |
-| `scripting` | Runs the page reader in the current tab (only after the user opens the extension) to extract job or profile details into the form, and the form filler when the user clicks Fill this page. |
+| `activeTab` | Gives access to the current tab only when the user opens the extension, so it can read the job posting or LinkedIn profile they're looking at. |
+| `scripting` | Runs the page reader in the current tab (only while the popup or autofill panel is open) to extract job or profile details, and the form filler when the user clicks Autofill this page. |
+| `sidePanel` | Shows the autofill panel beside the page: the job, the resume match, and the list of form questions filled or still to answer. |
 | `storage` | Stores the user's sign-in session, server settings, the details they enter for autofill, the answers they typed into application forms (to fill the same questions next time), and an unsaved form draft. |
 | Host permission `ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com` | The IamCandidate API: signing in and saving applications, companies, contacts and referrals to the user's account. |
+| Optional host permissions `https://*/*`, `http://*/*` | Requested only when the user first clicks Autofill this page. Application forms are on any company's site or ATS, and the user moves from the posting to the form, so the panel needs to read the job and fill the form on whichever page they're on, and download the user's own resume file from IamCandidate's storage to attach it. Nothing runs in the background. |
 | Optional host permission `localhost` | Only requested if the user points the extension at a IamCandidate server running on their own computer for development. |
 
 **Remote code:** No, I am not using remote code.
