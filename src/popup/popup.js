@@ -9,14 +9,18 @@ import {
 import { fillPage } from "../lib/autofill.js"
 import { extractPage } from "../lib/extract.js"
 import {
+  ANSWERS_KEY,
+  AUTOFILL_KEY,
   clearAutofill,
   clearDraft,
   clearSession,
+  getAnswers,
   getAutofill,
   getDraft,
   getLastApplicationId,
   getSession,
   getSettings,
+  saveAnswers,
   saveAutofill,
   saveDraft,
   saveSettings,
@@ -39,6 +43,8 @@ const state = {
   contacts: [],
   applications: [],
   resumes: [],
+  /** Answers learned from application forms, by question. */
+  answers: {},
   /** Loaded on first use of the LinkedIn message view. */
   templates: undefined,
   /** What the success view's buttons act on. */
@@ -591,7 +597,9 @@ const userKey = () => state.session?.user?.id ?? state.session?.user?.email
 async function populateAutofill() {
   autofillForm.reset()
   setAlert($("autofill-result"), "")
-  const saved = await getAutofill(userKey())
+  const [saved, answers] = await Promise.all([getAutofill(userKey()), getAnswers(userKey())])
+  state.answers = answers
+  renderAnswers()
   if (saved) return writeForm(autofillForm, saved)
   const user = state.session?.user ?? {}
   const profile = await api.getProfile().catch(() => ({}))
@@ -602,6 +610,37 @@ async function populateAutofill() {
     currentTitle: profile.role ?? "",
     summary: profile.bio ?? "",
   })
+}
+
+function renderAnswers() {
+  const entries = Object.entries(state.answers).sort(([, a], [, b]) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
+  $("answers-count").textContent = entries.length ? `· ${entries.length}` : ""
+  $("answers-empty").hidden = entries.length > 0
+  $("answers-list").replaceChildren(
+    ...entries.map(([question, answer]) => {
+      const item = document.createElement("li")
+      const text = Object.assign(document.createElement("div"), { className: "answer-text" })
+      const label = Object.assign(document.createElement("p"), { className: "strong", textContent: answer.label })
+      const value = Object.assign(document.createElement("p"), { className: "muted", textContent: answer.value })
+      label.title = answer.label
+      value.title = answer.value
+      text.append(label, value)
+      const remove = Object.assign(document.createElement("button"), {
+        type: "button",
+        className: "icon-btn",
+        textContent: "×",
+        title: "Forget this answer",
+      })
+      remove.setAttribute("aria-label", `Forget the answer to “${answer.label}”`)
+      remove.addEventListener("click", async () => {
+        delete state.answers[question]
+        renderAnswers()
+        await saveAnswers(userKey(), state.answers)
+      })
+      item.append(text, remove)
+      return item
+    }),
+  )
 }
 
 let autofillTimer
@@ -637,19 +676,20 @@ async function fillCurrentPage() {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       func: fillPage,
-      args: [details],
+      args: [details, state.answers, { userId: userKey(), detailsKey: AUTOFILL_KEY, answersKey: ANSWERS_KEY }],
     })
     const filled = results.flatMap((r) => r?.result?.filled ?? [])
     if (!filled.length) {
       return setAlert(
         $("main-error"),
-        "No empty fields here matched your details. Open the application form and try again.",
+        "No empty fields here matched your details. Answer this form yourself and IamCandidate will remember your answers for next time.",
       )
     }
     const labels = filled.map((f) => f.label)
+    const fromAnswers = filled.filter((f) => f.key === "answer").length
     setAlert(
       $("autofill-result"),
-      `Filled ${filled.length} field${filled.length === 1 ? "" : "s"} (outlined in green): ${labels.slice(0, 6).join(", ")}${labels.length > 6 ? "…" : ""}. Check them, add your resume, then submit the form yourself.`,
+      `Filled ${filled.length} field${filled.length === 1 ? "" : "s"} (outlined in green)${fromAnswers ? `, ${fromAnswers} from your saved answers` : ""}: ${labels.slice(0, 6).join(", ")}${labels.length > 6 ? "…" : ""}. Check them, add your resume, then submit the form yourself. New answers you type on this form are saved for next time.`,
     )
   } catch (error) {
     console.warn("IamCandidate: could not fill the page", error)
@@ -1029,6 +1069,13 @@ function wireEvents() {
   autofillForm.addEventListener("input", (event) => {
     event.target.closest(".field")?.classList.remove("invalid")
     scheduleAutofillSave()
+  })
+  // The form filler saves answers from the page; keep the list current while the popup is open.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const saved = changes[ANSWERS_KEY]?.newValue
+    if (area !== "local" || !changes[ANSWERS_KEY] || !state.session) return
+    state.answers = saved?.userId === userKey() ? (saved.answers ?? {}) : {}
+    renderAnswers()
   })
 
   for (const form of [jobForm, referralForm]) {

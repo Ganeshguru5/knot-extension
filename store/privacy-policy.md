@@ -23,7 +23,7 @@ The extension does not send data to any other server, analytics service or adver
 
 - Your sign-in session token, which stays valid until you sign out (or after a year without use), and your name and email for display.
 - The server address settings.
-- Your autofill details (name, contact details, links, work details, summary and cover letter), so they can be typed into application forms when you click Fill this page. They stay on this device: they are only ever written into the form on the page you're on, which you then choose whether to submit.
+- Your autofill details (name, contact details, links, work details, summary and cover letter), so they can be typed into application forms when you click Fill this page. They stay on this device: they are only ever written into the form on the page you're on, which you then choose whether to submit. After you click Fill this page, the answers you type into that form are also saved on this device, so the same questions can be filled in next time; you can see and remove them on the Autofill tab. Passwords, ID, card and bank numbers, dates of birth and one-time codes are never saved.
 - An unsaved form draft, so input isn't lost if the popup closes. It is cleared when you save or close the browser.
 
 Signing out removes the session and your autofill details from the browser.

@@ -27,6 +27,13 @@ someone's LinkedIn profile.
   and submit it yourself. Your details are pre-filled from your IamCandidate profile the first
   time, saved on this device as you edit them, and removed when you sign out. Field matching is
   in [src/lib/autofill.js](src/lib/autofill.js).
+- **It learns as you apply:** after you click **Fill this page**, whatever you type into that
+  form is remembered. A detail you hadn't filled in yet (phone, notice period…) is added to your
+  details; any other question ("Are you authorized to work in India?", "How did you hear about
+  us?", dropdowns, yes/no choices) is saved as an answer and filled in the next time a form asks
+  the same question. Saved answers are listed under **Saved answers** on the Autofill tab, where
+  you can forget any of them. Passwords, ID, card and bank numbers, dates of birth and one-time
+  codes are never saved.
 - Companies and contacts are matched to what's already in IamCandidate, by company name and by
   LinkedIn URL (or exact name). New ones are created only when there's no match.
 - Your unsaved input is kept if the popup closes (for example when you click the page to
@@ -102,7 +109,7 @@ src/lib/constants.js status/work-mode/relationship options (same as the web app)
   **Fill this page**) only when you open the extension on it. The
   extension doesn't run on pages in the background.
 - `storage`: settings, the session token (kept until you sign out, like the web app),
-  your autofill details and drafts.
+  your autofill details, the answers learned from forms, and drafts.
 - The IamCandidate API host: signing in and saving your data.
 - `http://localhost/*`, `http://127.0.0.1/*` (optional): requested only if you point the
   extension at a local iamcandidate-server in Settings.

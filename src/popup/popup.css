@@ -415,6 +415,42 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.answer-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.answer-list .answer-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.answer-list .answer-text p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.answer-list .icon-btn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
 .disclosure summary {
   cursor: pointer;
   font-size: 12px;

@@ -1,21 +1,31 @@
 /**
- * Fills a job application form on the current page from your autofill details.
+ * Fills a job application form on the current page from your autofill details
+ * and the answers you gave on earlier forms, then learns from what you type.
  *
- * Injected with `chrome.scripting.executeScript({ func: fillPage, args: [details] })`,
- * so it is serialized and runs inside the page: it must stay fully
- * self-contained (no imports, no references to anything outside this function).
+ * Injected with
+ * `chrome.scripting.executeScript({ func: fillPage, args: [details, answers, store] })`,
+ * so it is serialized and runs inside the page (as a content script): it must
+ * stay fully self-contained (no imports, no references to anything outside
+ * this function). `store` is `{ userId, detailsKey, answersKey }`: where in
+ * `chrome.storage.local` to save what it learns.
  *
- * It only types into fields. It never clicks a button, presses Enter, or calls
- * `form.submit()` / `requestSubmit()`: you review the form and submit it
- * yourself. Fields that already have a value are left alone, and so are
- * passwords, file uploads, checkboxes, radios and sign-in forms.
+ * It only types into fields and picks radio options. It never clicks a button,
+ * presses Enter, or calls `form.submit()` / `requestSubmit()`: you review the
+ * form and submit it yourself. Fields that already have a value are left
+ * alone, and so are passwords, file uploads, checkboxes and sign-in forms.
+ *
+ * Learning: once it has run in a frame, every question you answer there is
+ * saved. A field that is one of your details (phone, notice period…) fills
+ * that detail if it was empty; any other question is saved as an answer,
+ * keyed by its label, and filled on the next form that asks the same thing.
+ * Sensitive fields (IDs, card numbers, codes) are never saved.
  *
  * Returns `{ filled: [{ key, label }], frame }` for this frame.
  */
-export function fillPage(details) {
+export function fillPage(details, answers = {}, store = undefined) {
   const clean = (value) =>
     String(value ?? "")
-      .replace(/ /g, " ")
+      .replace(/ /g, " ")
       .replace(/\s+/g, " ")
       .trim()
 
@@ -43,6 +53,10 @@ export function fillPage(details) {
     { key: "summary", textarea: true, re: /summary|about (you|yourself)|introduce yourself|tell us about/ },
   ]
 
+  // Never saved, whatever the form asks.
+  const SENSITIVE =
+    /password|passcode|\bpin\b|\bssn\b|social security|card (number|no)|credit card|debit card|\bcvv\b|\bcvc\b|expiry|iban|swift|routing|account (number|no)|aadhaa?r|\bpan\b|passport|national id|date of birth|\bdob\b|birth ?date|\botp\b|one.time|verification code|captcha|security (question|answer)/
+
   const textOf = (el) => clean(el?.innerText ?? el?.textContent)
 
   /** The visible question for a field: its <label>, aria labels, or the text just before it. */
@@ -69,6 +83,28 @@ export function fillPage(details) {
     }
     return label
   }
+
+  /** A radio group's question: its <legend>, or the radiogroup's aria label. */
+  const groupOf = (radio) => radio.closest('fieldset, [role="radiogroup"]')
+  const groupLabelOf = (radio) => {
+    const group = groupOf(radio)
+    if (!group) return ""
+    const legend = group.tagName === "FIELDSET" ? group.querySelector("legend") : undefined
+    if (legend) return textOf(legend)
+    const ids = group.getAttribute("aria-labelledby")
+    if (ids) return clean(ids.split(/\s+/).map((id) => textOf(document.getElementById(id))).join(" "))
+    return clean(group.getAttribute("aria-label"))
+  }
+  const optionLabelOf = (radio) =>
+    clean(radio.labels?.length ? textOf(radio.labels[0]) : radio.getAttribute("aria-label") || radio.value)
+
+  /** Saved answers are looked up by the question with its punctuation and "required" marks removed. */
+  const questionKey = (label) =>
+    clean(label)
+      .toLowerCase()
+      .replace(/\((required|optional)\)|\brequired\b/g, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
 
   const describe = (el) =>
     [
@@ -114,6 +150,7 @@ export function fillPage(details) {
     firstName: clean(details.firstName) || first,
     lastName: clean(details.lastName) || rest.join(" "),
   }
+  const savedAnswer = (label) => answers?.[questionKey(label)]?.value
 
   /* ---------------- writing ---------------- */
 
@@ -121,6 +158,14 @@ export function fillPage(details) {
     "hidden", "password", "file", "checkbox", "radio", "submit", "button",
     "reset", "image", "search", "range", "color", "date", "datetime-local", "month", "week", "time",
   ])
+
+  /** Fields we fill and learn from (radios are handled as groups). */
+  const usable = (el) => {
+    if (el.disabled || el.readOnly) return false
+    if (el.tagName === "INPUT" && SKIP_TYPES.has((el.type || "text").toLowerCase())) return false
+    // Sign-in and sign-up forms aren't applications.
+    return !el.form?.querySelector('input[type="password"]')
+  }
 
   const visible = (el) => {
     const style = getComputedStyle(el)
@@ -168,15 +213,18 @@ export function fillPage(details) {
 
   const filled = []
   for (const el of document.querySelectorAll("input, textarea, select")) {
-    if (el.disabled || el.readOnly) continue
-    if (el.tagName === "INPUT" && SKIP_TYPES.has((el.type || "text").toLowerCase())) continue
-    // Sign-in and sign-up forms aren't applications.
-    if (el.form?.querySelector('input[type="password"]')) continue
-    if (!visible(el)) continue
+    if (!usable(el) || !visible(el)) continue
 
     const key = keyFor(el)
-    const value = clean(key ? values[key] : "")
-    if (!key || !value) continue
+    const label = labelOf(el)
+    let value = clean(key ? values[key] : "")
+    let raw = key === "summary" || key === "coverLetter" ? String(details[key] ?? "").trim() : value
+    if (!value) {
+      const answer = savedAnswer(label)
+      value = clean(answer)
+      raw = String(answer ?? "").trim()
+    }
+    if (!value) continue
 
     if (el.tagName === "SELECT") {
       if (el.value && el.selectedIndex > 0) continue
@@ -186,11 +234,99 @@ export function fillPage(details) {
     } else {
       if (el.value.trim()) continue
       const max = el.maxLength > 0 ? el.maxLength : Infinity
-      const text = key === "summary" || key === "coverLetter" ? String(details[key]).trim() : value
-      setValue(el, text.slice(0, max))
+      setValue(el, (el.tagName === "TEXTAREA" ? raw : value).slice(0, max))
     }
     mark(el)
-    filled.push({ key, label: clean(labelOf(el)).slice(0, 80) || key })
+    filled.push({ key: key && values[key] ? key : "answer", label: clean(label).slice(0, 80) || key })
+  }
+
+  // Yes/no and multiple-choice questions you answered before.
+  const groups = new Set()
+  for (const radio of document.querySelectorAll('input[type="radio"]')) {
+    const group = groupOf(radio)
+    if (!group || groups.has(group)) continue
+    groups.add(group)
+    const options = [...group.querySelectorAll('input[type="radio"]')].filter((r) => !r.disabled && visible(r))
+    if (!options.length || options.some((r) => r.checked)) continue
+    const label = groupLabelOf(radio)
+    const want = clean(savedAnswer(label)).toLowerCase()
+    const choice = want && options.find((r) => optionLabelOf(r).toLowerCase() === want)
+    if (!choice) continue
+    // A radio can't submit a form; clicking it is how frameworks expect it to change.
+    choice.click()
+    mark(choice.labels?.[0] ?? choice)
+    filled.push({ key: "answer", label: label.slice(0, 80) })
+  }
+
+  /* ---------------- learning ---------------- */
+
+  // Details the popup has a field for (first/last name are derived from the full name).
+  const DETAIL_KEYS = new Set(RULES.map((rule) => rule.key).filter((key) => key !== "firstName" && key !== "lastName"))
+
+  if (store?.userId && globalThis.chrome?.storage?.local) {
+    // The listener stays installed in this frame; later runs only update where it saves.
+    globalThis.__iamcandidateStore = store
+    if (!globalThis.__iamcandidateLearning) {
+      globalThis.__iamcandidateLearning = true
+      let queue = Promise.resolve()
+
+      const save = (key, label, value) => {
+        const { userId, detailsKey, answersKey } = globalThis.__iamcandidateStore ?? {}
+        if (!userId) return
+        queue = queue
+          .then(async () => {
+            const stored = await chrome.storage.local.get([detailsKey, answersKey])
+            const ownDetails = stored[detailsKey]?.userId === userId ? stored[detailsKey].details : {}
+            if (key) {
+              // Only fill in a missing detail: what you type on one form may be specific to that job.
+              if (clean(ownDetails?.[key])) return
+              await chrome.storage.local.set({
+                [detailsKey]: { userId, details: { ...ownDetails, [key]: value } },
+              })
+              return
+            }
+            const own = stored[answersKey]?.userId === userId ? stored[answersKey].answers : {}
+            await chrome.storage.local.set({
+              [answersKey]: {
+                userId,
+                answers: { ...own, [questionKey(label)]: { label: clean(label).slice(0, 200), value, savedAt: Date.now() } },
+              },
+            })
+          })
+          .catch(() => {})
+      }
+
+      document.addEventListener(
+        "change",
+        (event) => {
+          const el = event.target
+          if (!(el instanceof HTMLElement) || !el.matches?.("input, textarea, select")) return
+          if (el.type === "radio") {
+            if (!el.checked || el.disabled || el.form?.querySelector('input[type="password"]')) return
+            const label = groupLabelOf(el)
+            const value = optionLabelOf(el)
+            if (questionKey(label) && value && !SENSITIVE.test(label.toLowerCase())) save(undefined, label, value)
+            return
+          }
+          if (!usable(el)) return
+          const label = labelOf(el)
+          if (!questionKey(label) || SENSITIVE.test(describe(el))) return
+          const value =
+            el.tagName === "SELECT"
+              ? el.selectedIndex > 0 || el.value
+                ? clean(el.selectedOptions[0]?.textContent)
+                : ""
+              : el.tagName === "TEXTAREA"
+                ? el.value.trim()
+                : clean(el.value)
+          if (!value || value.length > 20000) return
+          const key = keyFor(el)
+          if (key && !DETAIL_KEYS.has(key)) return
+          save(key, label, value)
+        },
+        true,
+      )
+    }
   }
 
   return { filled, frame: location.hostname }

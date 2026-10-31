@@ -85,10 +85,12 @@ export async function setLastApplicationId(id) {
   await chrome.storage.session.set({ [LAST_APPLICATION_KEY]: id })
 }
 
-const AUTOFILL_KEY = "iamcandidate:autofill"
+export const AUTOFILL_KEY = "iamcandidate:autofill"
+export const ANSWERS_KEY = "iamcandidate:answers"
 
 /** Your details for filling application forms, kept on this device for the
- * signed-in user (`{ userId, details }`) until you sign out. */
+ * signed-in user (`{ userId, details }`) until you sign out. The form filler
+ * also writes here, from the page, when you type a missing detail into a form. */
 export async function getAutofill(userId) {
   const { [AUTOFILL_KEY]: saved } = await chrome.storage.local.get(AUTOFILL_KEY)
   return saved?.userId === userId ? saved.details : undefined
@@ -98,6 +100,17 @@ export async function saveAutofill(userId, details) {
   await chrome.storage.local.set({ [AUTOFILL_KEY]: { userId, details } })
 }
 
+/** Answers to other questions, learned from the forms you fill in
+ * (`{ userId, answers: { [question]: { label, value, savedAt } } }`). */
+export async function getAnswers(userId) {
+  const { [ANSWERS_KEY]: saved } = await chrome.storage.local.get(ANSWERS_KEY)
+  return saved?.userId === userId ? (saved.answers ?? {}) : {}
+}
+
+export async function saveAnswers(userId, answers) {
+  await chrome.storage.local.set({ [ANSWERS_KEY]: { userId, answers } })
+}
+
 export async function clearAutofill() {
-  await chrome.storage.local.remove(AUTOFILL_KEY)
+  await chrome.storage.local.remove([AUTOFILL_KEY, ANSWERS_KEY])
 }

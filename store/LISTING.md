@@ -22,7 +22,7 @@ While you're applying for a job, click the IamCandidate icon (or press Alt+K). T
 
 On a LinkedIn profile, add that person as a referral in one click. Their name, headline, current company and profile link are filled in for you, and you can link the referral to a job you've already saved.
 
-Filling in the application itself? Open the Autofill tab and click Fill this page. Your name, contact details, links, current role, experience, notice period and salary go into the matching empty fields. Nothing is overwritten or submitted: you check the form and submit it yourself.
+Filling in the application itself? Open the Autofill tab and click Fill this page. Your name, contact details, links, current role, experience, notice period and salary go into the matching empty fields. Nothing is overwritten or submitted: you check the form and submit it yourself. Answers you type into a form are remembered, so the next application that asks the same question is filled in for you.
 
 • Works on popular job boards and most company career pages
 • Warns you when a job is already saved
@@ -47,7 +47,7 @@ Help the user apply for jobs: save job postings and LinkedIn referral contacts f
 | --- | --- |
 | `activeTab` | Gives access to the current tab only when the user opens the extension, so it can read the job posting or LinkedIn profile they're looking at, or fill the application form there when they click Fill this page. |
 | `scripting` | Runs the page reader in the current tab (only after the user opens the extension) to extract job or profile details into the form, and the form filler when the user clicks Fill this page. |
-| `storage` | Stores the user's sign-in session, server settings, the details they enter for autofill, and an unsaved form draft. |
+| `storage` | Stores the user's sign-in session, server settings, the details they enter for autofill, the answers they typed into application forms (to fill the same questions next time), and an unsaved form draft. |
 | Host permission `ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com` | The IamCandidate API: signing in and saving applications, companies, contacts and referrals to the user's account. |
 | Optional host permission `localhost` | Only requested if the user points the extension at a IamCandidate server running on their own computer for development. |
 
