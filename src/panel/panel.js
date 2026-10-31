@@ -417,7 +417,7 @@ const SUMMARY = [
   ["Notice period", (d) => d.noticePeriod],
   ["Expected salary", (d) => d.expectedSalary],
 ]
-const NOT_DETAILS = new Set(["fullName", "location", "answers"])
+const NOT_DETAILS = new Set(["fullName", "location", "answers", "experience"])
 
 function renderDetails() {
   const details = state.details ?? {}

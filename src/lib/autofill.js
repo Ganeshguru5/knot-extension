@@ -16,6 +16,10 @@
  * form and submit it yourself. Fields that already have a value are left
  * alone, and so are passwords, checkboxes, other file uploads and sign-in forms.
  *
+ * Work history: forms that ask for each job in its own block (title,
+ * company, dates…) get your jobs in order, the first block your latest job.
+ * It never clicks "Add another"; blocks the form doesn't show stay unfilled.
+ *
  * Learning: once it has run in a frame, every question you answer there is
  * saved. A field that is one of your details (phone, notice period…) fills
  * that detail if it was empty; any other question is saved as an answer,
@@ -76,8 +80,16 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     { key: "expectedSalary", re: /expected (ctc|salary|compensation|pay)|salary expectation|desired (salary|compensation)/ },
     { key: "currentSalary", re: /current (ctc|salary|compensation|pay)/ },
     { key: "experienceYears", re: /years? of (relevant |total |professional )?experience|total experience|experience \(?(in )?years/ },
-    { key: "currentTitle", ac: ["organization-title"], re: /(current|present|latest) (job )?(title|role|position|designation)|^job title|^designation/ },
-    { key: "currentCompany", ac: ["organization"], re: /(current|present|latest) (company|employer|organi[sz]ation)|^company( name)?$|^employer/ },
+    { key: "currentTitle", ac: ["organization-title"], re: /(current|present|latest) (job )?(title|role|position|designation)/ },
+    { key: "currentCompany", ac: ["organization"], re: /(current|present|latest) (company|employer|organi[sz]ation)/ },
+    // One job of your work history; `section` rules only count inside a
+    // work experience / employment block of the form.
+    { key: "jobTitle", re: /^(job |position |role )?title\b|job title|^designation|^position\b|^role\b/, not: /company|employer|school|degree|course|project|apply|applying|interested|desired|preferred/ },
+    { key: "jobCompany", re: /^(company|employer|organi[sz]ation)( name)?\b|company name|employer name|name of (the )?(company|employer|organi[sz]ation)/, not: /school|universit|website|url|size|industry/ },
+    { key: "jobStart", section: true, re: /start(ing)? (date|month|year)|(from|since) (date|month|year)|date (started|from)|^from\b|^start\b/ },
+    { key: "jobEnd", section: true, re: /end(ing)? (date|month|year)|to (date|month|year)|date (ended|to)|^to\b|^end\b|until/ },
+    { key: "jobLocation", section: true, re: /location|\bcity\b/ },
+    { key: "jobDescription", section: true, textarea: true, re: /description|responsibilit|duties|achievement|role summary|what you did/ },
     { key: "location", ac: ["address-level2"], re: /\bcity\b|current location|^location|where .*(based|located)|town/, not: /preferred|relocat|willing/ },
     { key: "coverLetter", textarea: true, re: /cover letter/ },
     { key: "summary", textarea: true, re: /summary|about (you|yourself)|introduce yourself|tell us about/ },
@@ -159,6 +171,40 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
       .replace(/[_\-[\]]+/g, " ")
       .toLowerCase()
 
+  /** Whether a field sits in a work experience / employment block (not education). */
+  const JOB_SECTION = /work.?experience|employment|work.?history|job.?history|professional.?experience|^experience\b/
+  const sections = new Map()
+  const inJobSection = (el) => {
+    if (sections.has(el)) return sections.get(el)
+    let found = false
+    let node = el.parentElement
+    for (let depth = 0; node && depth < 10 && node !== document.body; depth++, node = node.parentElement) {
+      const about = [node.id, node.getAttribute("data-automation-id"), node.getAttribute("aria-label"), node.getAttribute("data-qa")]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .toLowerCase()
+      if (/education|school/.test(about)) break
+      if (JOB_SECTION.test(about)) {
+        found = true
+        break
+      }
+      // The block's heading: the nearest one above this field inside it.
+      const heading = [...node.querySelectorAll('h1, h2, h3, h4, h5, h6, legend, [role="heading"]')]
+        .filter((h) => h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
+        .pop()
+      const title = clean(heading?.textContent).toLowerCase()
+      if (!title) continue
+      if (/education|school|universit/.test(title)) break
+      if (JOB_SECTION.test(title)) {
+        found = true
+        break
+      }
+    }
+    sections.set(el, found)
+    return found
+  }
+
   const keyFor = (el) => {
     const tokens = String(el.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/)
     for (const rule of RULES) {
@@ -173,6 +219,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
       const hay = rule.re.test(label) ? label : rule.re.test(all) ? all : ""
       if (!hay) continue
       if (rule.not?.test(hay)) continue
+      if (rule.section && !inJobSection(el)) continue
       return rule.key
     }
     return undefined
@@ -181,7 +228,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
   /** The detail a question asks for, from its text alone (radio groups have no single field). */
   const keyForText = (text) => {
     const label = clean(text).toLowerCase()
-    const rule = RULES.find((r) => !r.textarea && r.re.test(label) && !r.not?.test(label))
+    const rule = RULES.find((r) => !r.textarea && !r.section && !JOB_KEYS.has(r.key) && r.re.test(label) && !r.not?.test(label))
     return rule?.key
   }
 
@@ -197,6 +244,77 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     location: clean(details.location) || clean(details.city),
   }
   const savedAnswer = (label) => answers?.[questionKey(label)]?.value
+
+  /* ---------------- work history ---------------- */
+
+  const JOB_KEYS = new Set(["jobTitle", "jobCompany", "jobStart", "jobEnd", "jobLocation", "jobDescription"])
+  const CURRENT_JOB = /current(ly)? (work|working|employed|employer|role|job|position|company)|(still|currently) work(ing)? here|^present\b|to present/
+  const jobs = Array.isArray(details.experience) && details.experience.length
+    ? details.experience
+    : clean(details.currentTitle) || clean(details.currentCompany)
+      ? [{ title: details.currentTitle, company: details.currentCompany }]
+      : []
+
+  // The nth title field on the page is the nth job, and so on for each kind of
+  // field (a month and a year box for the same date are counted apart).
+  const seen = {}
+  const partOf = (el) => {
+    const type = (el.type || "").toLowerCase()
+    if (type === "month" || type === "date") return type
+    const all = describe(el)
+    return /\bmonth\b|\bmm\b/.test(all) ? "mm" : /\byear\b|\byyyy\b/.test(all) ? "yyyy" : ""
+  }
+  const slotOf = (key, el) => {
+    const id = `${key}:${key === "jobStart" || key === "jobEnd" ? partOf(el) : ""}`
+    seen[id] = (seen[id] ?? -1) + 1
+    return seen[id]
+  }
+
+  const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+
+  /** A "YYYY-MM" date the way this field takes it. */
+  const dateFor = (el, yearMonth) => {
+    const [, year, month] = String(yearMonth ?? "").match(/^(\d{4})-(\d{2})$/) ?? []
+    if (!year) return ""
+    const part = partOf(el)
+    if (part === "month") return `${year}-${month}`
+    if (part === "date") return `${year}-${month}-01`
+    if (part === "yyyy") return year
+    if (part === "mm") {
+      if (el.tagName !== "SELECT") return month
+      const name = MONTH_NAMES[Number(month) - 1]
+      const option = [...el.options].find((o) => {
+        const text = clean(o.textContent).toLowerCase()
+        return text.startsWith(name.slice(0, 3)) || Number(o.value) === Number(month) || Number(text) === Number(month)
+      })
+      return option ? clean(option.textContent) : ""
+    }
+    const hint = clean(el.getAttribute("placeholder")).toLowerCase()
+    if (/yyyy.?mm/.test(hint)) return `${year}-${month}`
+    if (/dd/.test(hint)) return /^dd/.test(hint) ? `01/${month}/${year}` : `${month}/01/${year}`
+    return `${month}/${year}`
+  }
+
+  /** What the nth job says for a field. */
+  const jobValue = (key, slot, el) => {
+    const job = jobs[slot]
+    if (!job) return ""
+    switch (key) {
+      case "jobTitle":
+        return job.title
+      case "jobCompany":
+        return job.company
+      case "jobLocation":
+        return job.location
+      case "jobDescription":
+        return job.description
+      case "jobStart":
+        return dateFor(el, job.startDate)
+      case "jobEnd":
+        return job.current ? "" : dateFor(el, job.endDate)
+    }
+    return ""
+  }
 
   /* ---------------- writing ---------------- */
 
@@ -216,7 +334,9 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
   const usable = (el) => {
     if (el.disabled || el.readOnly) return false
     const type = (el.type || "text").toLowerCase()
-    if (el.tagName === "INPUT" && SKIP_TYPES.has(type) && !(type === "search" && isCombobox(el))) return false
+    // A job's start and end can be native month or date pickers.
+    const jobDate = (type === "month" || type === "date") && /^job(Start|End)$/.test(keyFor(el) ?? "")
+    if (el.tagName === "INPUT" && SKIP_TYPES.has(type) && !(type === "search" && isCombobox(el)) && !jobDate) return false
     // Sign-in and sign-up forms aren't applications.
     return !el.form?.querySelector('input[type="password"]')
   }
@@ -382,7 +502,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
   if (options.onlyApplications || options.detectOnly) {
     const JOB_KEYS = new Set([
       "linkedin", "github", "portfolio", "noticePeriod", "expectedSalary", "currentSalary",
-      "experienceYears", "currentTitle", "currentCompany", "coverLetter",
+      "experienceYears", "currentTitle", "currentCompany", "coverLetter", "jobTitle", "jobCompany",
     ])
     const asked = new Set()
     for (const el of document.querySelectorAll("input, textarea, select")) {
@@ -463,6 +583,19 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     if (el.tagName === "INPUT" && type === "checkbox") {
       if (el.disabled || !onPage(el) || groupOf(el)) continue
       const label = el.labels?.length ? labelText(el.labels[0]) : labelOf(el)
+      // "I currently work here" on the nth job block, ticked for a current job.
+      if (CURRENT_JOB.test(label.toLowerCase()) && !el.form?.querySelector('input[type="password"]')) {
+        const slot = slotOf("jobCurrent", el)
+        const tick = !!jobs[slot]?.current && !el.checked
+        if (tick) {
+          // Like a radio, a checkbox can't submit a form; clicking is how frameworks see the change.
+          el.click()
+          mark(el.labels?.[0] ?? el)
+          // The end date fields it hides need a moment to go.
+          await sleep(150)
+        }
+        continue
+      }
       if (requiredOf(el, label)) track(el, label, true, el.checked ? "had" : "empty")
       continue
     }
@@ -470,6 +603,7 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
     if (!usable(el) || !visible(el)) continue
 
     const key = keyFor(el)
+    const slot = JOB_KEYS.has(key) ? slotOf(key, el) : -1
     const label = labelOf(el)
     const required = requiredOf(el, label)
     const had = el.tagName === "SELECT" ? !!el.value && el.selectedIndex > 0 : !!el.value.trim()
@@ -478,9 +612,14 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
       continue
     }
 
-    let value = clean(key ? values[key] : "")
-    let raw = key === "summary" || key === "coverLetter" ? String(details[key] ?? "").trim() : value
-    if (!value) {
+    // A current job has no end date: not a question left for you.
+    if (key === "jobEnd" && jobs[slot]?.current) continue
+
+    const detail = slot >= 0 ? String(jobValue(key, slot, el) ?? "") : key ? values[key] : ""
+    let value = clean(detail)
+    let raw = key === "summary" || key === "coverLetter" || key === "jobDescription" ? String(detail ?? "").trim() : value
+    // A saved answer to "Company name" would put one company in every job block.
+    if (!value && slot < 0) {
       const answer = savedAnswer(label)
       value = clean(answer)
       raw = String(answer ?? "").trim()
@@ -501,14 +640,15 @@ export async function fillPage(details, answers = {}, store = undefined, resume 
       done = true
     }
     if (done) mark(el)
-    track(el, label, required, done ? "filled" : "empty", done && !(key && values[key]) ? "answer" : key)
+    track(el, label, required, done ? "filled" : "empty", done && !clean(detail) ? "answer" : key)
   }
 
   /* ---------------- learning ---------------- */
 
   // Details your IamCandidate autofill profile has a field for (a full name
   // can't be split reliably, so it isn't learned).
-  const DETAIL_KEYS = new Set(RULES.map((rule) => rule.key).filter((key) => key !== "fullName"))
+  // Nor is one job's title or dates: those belong to your work history.
+  const DETAIL_KEYS = new Set(RULES.map((rule) => rule.key).filter((key) => key !== "fullName" && !JOB_KEYS.has(key)))
   const PROFILE_FIELD = { location: "city" }
 
   if (store?.userId && globalThis.chrome?.storage?.local) {
