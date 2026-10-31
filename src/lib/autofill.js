@@ -59,10 +59,18 @@ export function fillPage(details, answers = {}, store = undefined) {
 
   const textOf = (el) => clean(el?.innerText ?? el?.textContent)
 
+  /** A label's own text, without the options of a <select> nested inside it. */
+  const labelText = (label) => {
+    if (!label.querySelector("input, select, textarea")) return textOf(label)
+    const copy = label.cloneNode(true)
+    for (const control of copy.querySelectorAll("input, select, textarea")) control.remove()
+    return clean(copy.textContent)
+  }
+
   /** The visible question for a field: its <label>, aria labels, or the text just before it. */
   const labelOf = (el) => {
     const parts = []
-    if (el.labels?.length) parts.push(...[...el.labels].map(textOf))
+    if (el.labels?.length) parts.push(...[...el.labels].map(labelText))
     const ids = el.getAttribute("aria-labelledby")
     if (ids) {
       for (const id of ids.split(/\s+/)) parts.push(textOf(document.getElementById(id)))
@@ -96,7 +104,7 @@ export function fillPage(details, answers = {}, store = undefined) {
     return clean(group.getAttribute("aria-label"))
   }
   const optionLabelOf = (radio) =>
-    clean(radio.labels?.length ? textOf(radio.labels[0]) : radio.getAttribute("aria-label") || radio.value)
+    clean(radio.labels?.length ? labelText(radio.labels[0]) : radio.getAttribute("aria-label") || radio.value)
 
   /** Saved answers are looked up by the question with its punctuation and "required" marks removed. */
   const questionKey = (label) =>
