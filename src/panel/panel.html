@@ -67,6 +67,35 @@
           <span>Autofill this page</span>
         </button>
 
+        <!-- Track the job in IamCandidate once you've applied. -->
+        <div id="applied" class="stack">
+          <p id="applied-done" class="alert ok" hidden></p>
+          <form id="applied-form" class="card stack" novalidate hidden>
+            <div class="card-head">
+              <span class="card-title">Save to your applications</span>
+            </div>
+            <div class="grid-2">
+              <label class="field">
+                <span class="label">Role <em>*</em></span>
+                <input name="role" maxlength="200" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span class="label">Company <em>*</em></span>
+                <input name="company" maxlength="200" autocomplete="off" />
+              </label>
+            </div>
+            <label class="field">
+              <span class="label">Work mode <em>*</em></span>
+              <select name="workMode"></select>
+            </label>
+            <div class="row end">
+              <button id="applied-cancel" class="btn ghost" type="button">Cancel</button>
+              <button id="applied-save" class="btn primary" type="submit">Save as applied</button>
+            </div>
+          </form>
+          <button id="btn-applied" class="btn block" type="button">Mark this job as applied</button>
+        </div>
+
         <label class="switch-row">
           <input id="auto-toggle" type="checkbox" role="switch" />
           <span>

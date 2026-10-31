@@ -1,5 +1,6 @@
 import { api, ApiError } from "../lib/api.js"
 import { fillPage, focusField } from "../lib/autofill.js"
+import { WORK_MODES } from "../lib/constants.js"
 import { extractPage } from "../lib/extract.js"
 import { matchResume } from "../lib/match.js"
 import { LEARN_KEY, loadFillData } from "../lib/profile.js"
@@ -21,7 +22,8 @@ import {
 /**
  * The autofill side panel: what job you're applying for, how your resume
  * matches it, and a field-by-field report after filling the form, with the
- * required questions still unanswered called out. It follows the active tab.
+ * required questions still unanswered called out, and a button to save the
+ * job to your applications once you've applied. It follows the active tab.
  */
 
 /* ------------------------------------------------------------------ */
@@ -32,12 +34,15 @@ const state = {
   settings: undefined,
   session: undefined,
   tab: undefined,
-  /** `{ role, company, description, site }` for the job on (or behind) this page. */
+  /** `{ role, company, location, workMode, jobId, jobUrl, description, site }` for the job on (or behind) this page. */
   job: undefined,
   /** Whether the extension can script the current page. */
   readable: false,
   resumes: [],
   resumeId: "",
+  /** For "Mark this job as applied": to reuse a company and spot a job saved before. */
+  companies: [],
+  applications: [],
   /** Your autofill details and saved answers, as the form filler reads them. */
   details: {},
   answers: {},
@@ -97,7 +102,7 @@ async function init() {
   }
   try {
     state.session = await api.refreshIfStale(state.session)
-    await Promise.all([loadResumes(), loadDetails()])
+    await Promise.all([loadResumes(), loadDetails(), loadApplications()])
   } catch (error) {
     return handleError(error)
   }
@@ -126,6 +131,15 @@ async function loadResumes() {
   )
   select.value = state.resumeId
   select.disabled = !state.resumes.length
+}
+
+async function loadApplications() {
+  const [companies, applications] = await Promise.all([
+    api.listCompanies().catch(() => []),
+    api.listApplications().catch(() => []),
+  ])
+  state.companies = companies ?? []
+  state.applications = applications ?? []
 }
 
 /** Your details and answers from IamCandidate (the copy on this device when offline). */
@@ -167,12 +181,19 @@ async function readTab() {
   if (page?.kind === "job" && here.description) await rememberJob(tab.id, { ...here, site: page.site })
   const earlier = here.description ? undefined : await recallJob(tab?.id)
   const role = cleanRole(here.role)
+  // The posting's own link beats the application form's, which is often a one-off.
+  const pick = (key) => here[key] || earlier?.[key] || ""
   state.job = {
-    role: role || earlier?.role || "",
-    company: here.company || earlier?.company || "",
-    description: here.description || earlier?.description || "",
+    role: role || cleanRole(earlier?.role),
+    company: pick("company"),
+    location: pick("location"),
+    workMode: pick("workMode"),
+    jobId: pick("jobId"),
+    jobUrl: (here.description ? here.jobUrl : earlier?.jobUrl) || here.jobUrl || (isHttpUrl(tab?.url) ? tab.url : ""),
+    description: pick("description"),
     site: page?.site || earlier?.site || hostOf(tab?.url),
   }
+  if (changed) closeAppliedForm()
   renderJob()
   renderMatch()
   await showStoredReport()
@@ -217,6 +238,7 @@ function renderJob() {
     : "Open a job's application form to autofill it."
   $("job-mark").textContent = (job.company || job.role || job.site || "?").trim().charAt(0).toUpperCase()
   $("btn-autofill").disabled = !fillable || state.running
+  renderApplied()
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,6 +412,156 @@ function fieldRow(field, index) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mark as applied                                                     */
+/* ------------------------------------------------------------------ */
+
+const appliedForm = () => $("applied-form")
+const appliedField = (name) => appliedForm().elements.namedItem(name)
+
+/** "Acme Inc." and "ACME" are the same company. */
+const norm = (value) =>
+  String(value ?? "")
+    .toLowerCase()
+    .replace(/[.,&()'"]/g, " ")
+    .replace(/\b(inc|llc|ltd|limited|pvt|private|corp|corporation|co|gmbh|plc|llp|the)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+const normUrl = (value) => {
+  try {
+    const url = new URL(value)
+    return `${url.hostname.replace(/^www\./, "")}${url.pathname.replace(/\/+$/, "")}`.toLowerCase()
+  } catch {
+    return ""
+  }
+}
+
+const findCompany = (name) => {
+  const key = norm(name)
+  return key ? state.companies.find((c) => norm(c.name) === key) : undefined
+}
+const companyName = (id) => state.companies.find((c) => c.id === id)?.name ?? ""
+
+/** This job, if it's already in your applications: same link, or same role at the same company. */
+function savedApplication() {
+  const { jobUrl, role, company } = state.job ?? {}
+  const url = normUrl(jobUrl)
+  const companyId = findCompany(company)?.id
+  return state.applications.find(
+    (a) =>
+      (url && normUrl(a.jobUrl) === url) ||
+      (companyId && a.companyId === companyId && norm(a.role) === norm(role)),
+  )
+}
+
+function renderApplied() {
+  const fillable = state.tab?.id && isHttpUrl(state.tab.url)
+  const saved = fillable ? savedApplication() : undefined
+  const done = $("applied-done")
+  done.replaceChildren()
+  done.hidden = !saved
+  $("btn-applied").hidden = !fillable || !!saved || !appliedForm().hidden
+  if (!saved) return
+  const company = companyName(saved.companyId)
+  done.append(`In your applications: ${saved.role}${company ? ` at ${company}` : ""}. `)
+  const open = el("button", { type: "button", className: "link", textContent: "Open it" })
+  open.addEventListener("click", () =>
+    chrome.tabs.create({ url: `${state.settings.appUrl}/career/applications/${encodeURIComponent(saved.id)}` }),
+  )
+  done.append(open)
+}
+
+/** Saves right away when the page named the role, company and work mode; otherwise asks for what's missing. */
+function markApplied() {
+  const { role = "", company = "", workMode = "" } = state.job ?? {}
+  if (role && company && workMode) return saveApplied({ role, company, workMode })
+  const form = appliedForm()
+  form.hidden = false
+  $("btn-applied").hidden = true
+  appliedField("role").value = role
+  appliedField("company").value = company
+  appliedField("workMode").value = workMode
+  for (const name of ["role", "company", "workMode"]) {
+    appliedField(name).closest(".field").classList.toggle("missing", !appliedField(name).value)
+  }
+  ;(["role", "company", "workMode"].map(appliedField).find((input) => !input.value) ?? appliedField("role")).focus()
+}
+
+function closeAppliedForm() {
+  appliedForm().hidden = true
+  for (const field of appliedForm().querySelectorAll(".field")) field.classList.remove("missing", "invalid")
+}
+
+async function saveApplied(values) {
+  const button = appliedForm().hidden ? $("btn-applied") : $("applied-save")
+  const label = button.textContent
+  button.disabled = true
+  button.textContent = "Saving…"
+  setAlert($("main-error"), "")
+  try {
+    let companyId = findCompany(values.company)?.id
+    if (!companyId) {
+      const created = await api.createCompany({
+        name: values.company,
+        industry: "",
+        website: "",
+        location: "",
+        size: "",
+        status: "active",
+        description: "",
+        notes: "",
+      })
+      state.companies.push(created)
+      companyId = created.id
+    }
+    const job = state.job ?? {}
+    const input = {
+      companyId,
+      role: values.role,
+      location: job.location ?? "",
+      workMode: values.workMode,
+      status: "applied",
+      priority: "medium",
+      notes: "",
+    }
+    if (isHttpUrl(job.jobUrl)) input.jobUrl = job.jobUrl
+    if (job.jobId) input.jobId = job.jobId
+    if (job.site) input.source = job.site
+    if (job.description) input.description = job.description
+    if (state.resumeId) input.resumeId = state.resumeId
+    const application = await api.createApplication(input)
+    state.applications.unshift(application)
+    // What you typed is what this job is called from now on.
+    state.job = { ...job, role: values.role, company: values.company, workMode: values.workMode }
+    closeAppliedForm()
+    renderJob()
+  } catch (error) {
+    handleError(error)
+  } finally {
+    button.disabled = false
+    button.textContent = label
+  }
+}
+
+function submitApplied(event) {
+  event.preventDefault()
+  const values = {
+    role: appliedField("role").value.trim(),
+    company: appliedField("company").value.trim(),
+    workMode: appliedField("workMode").value,
+  }
+  const missing = Object.keys(values).filter((name) => !values[name])
+  for (const name of Object.keys(values)) {
+    appliedField(name).closest(".field").classList.toggle("invalid", missing.includes(name))
+  }
+  if (missing.length) {
+    appliedField(missing[0]).focus()
+    return
+  }
+  void saveApplied(values)
+}
+
+/* ------------------------------------------------------------------ */
 /* Automatic filling                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -498,6 +670,17 @@ function wireEvents() {
   $("tab-details").addEventListener("click", () => setTab("details"))
   $("btn-refresh").addEventListener("click", () => (state.session ? readTab() : init()))
 
+  appliedField("workMode").replaceChildren(
+    el("option", { value: "", textContent: "Choose…" }),
+    ...WORK_MODES.map(({ value, label }) => el("option", { value, textContent: label })),
+  )
+  $("btn-applied").addEventListener("click", markApplied)
+  appliedForm().addEventListener("submit", submitApplied)
+  $("applied-cancel").addEventListener("click", () => {
+    closeAppliedForm()
+    renderApplied()
+  })
+
   $("btn-autofill").addEventListener("click", () => {
     // Before any await: Chrome only asks for permissions during a click.
     const access = chrome.permissions.request(SITE_ACCESS)
@@ -526,9 +709,12 @@ function wireEvents() {
   })
 
   $("details-edit").addEventListener("click", openAutofillPage)
-  // Coming back from editing them in IamCandidate.
+  // Coming back from IamCandidate: details edited, applications added or removed.
   window.addEventListener("focus", () => {
-    if (state.session && !state.running) void loadDetails().catch(() => {})
+    if (state.session && !state.running) {
+      void loadDetails().catch(() => {})
+      void loadApplications().then(renderApplied)
+    }
   })
 
   chrome.tabs.onActivated.addListener(scheduleRead)
