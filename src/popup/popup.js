@@ -582,13 +582,55 @@ async function saveReferral() {
 /* Autofill                                                            */
 /* ------------------------------------------------------------------ */
 
+const PANEL_WINDOW_KEY = "iamcandidate:panel-window"
+
 /** Opens the side panel for this window. Must run inside the click: Chrome
- * only opens a side panel during a user gesture. */
+ * only opens a side panel during a user gesture. Browsers without extension
+ * side panels (Brave) get the same panel in a small window instead. */
 function openAutofillPanel() {
-  chrome.sidePanel
-    .open({ windowId: state.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT })
+  const windowId = state.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT
+  let opening
+  try {
+    opening = chrome.sidePanel?.open({ windowId })
+  } catch {
+    // Not supported here.
+  }
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), 1500))
+  Promise.race([opening ?? Promise.reject(new Error("no side panel")), timeout])
+    .catch(() => openPanelWindow(windowId))
     .then(() => window.close())
-    .catch((error) => setAlert($("main-error"), `Couldn't open the side panel: ${error.message}`))
+    .catch((error) => setAlert($("main-error"), `Couldn't open the autofill panel: ${error.message}`))
+}
+
+/** The panel as a narrow window at the right edge of the browser window,
+ * reusing the one already open. */
+async function openPanelWindow(windowId) {
+  const { [PANEL_WINDOW_KEY]: existing } = await chrome.storage.session.get(PANEL_WINDOW_KEY)
+  if (existing) {
+    try {
+      await chrome.windows.update(existing, { focused: true })
+      return
+    } catch {
+      // It was closed.
+    }
+  }
+  const base = await chrome.windows.get(windowId).catch(() => undefined)
+  const width = 420
+  const bounds = base
+    ? {
+        width,
+        height: Math.max(500, base.height - 90),
+        left: Math.max(0, base.left + base.width - width - 12),
+        top: base.top + 80,
+      }
+    : { width, height: 760 }
+  const created = await chrome.windows.create({
+    url: chrome.runtime.getURL(`src/panel/panel.html?window=${base?.id ?? ""}`),
+    type: "popup",
+    focused: true,
+    ...bounds,
+  })
+  await chrome.storage.session.set({ [PANEL_WINDOW_KEY]: created.id })
 }
 
 /* ------------------------------------------------------------------ */

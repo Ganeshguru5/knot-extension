@@ -45,6 +45,9 @@ const MAX_RESUME_BYTES = 8 * 1024 * 1024
 const RESUME_PREF_KEY = "iamcandidate:panel-resume"
 /** Asked for on the first Autofill click, so the panel keeps working as you move between pages. */
 const SITE_ACCESS = { origins: ["https://*/*", "http://*/*"] }
+/** Set when the panel runs in its own window (browsers without side panels):
+ * the browser window whose active tab it works on. */
+const pageWindowId = Number(new URLSearchParams(location.search).get("window")) || undefined
 
 /* ------------------------------------------------------------------ */
 /* DOM helpers                                                         */
@@ -163,7 +166,9 @@ async function loadDetails() {
 /** Reads the job on the active tab. An application form usually lacks the
  * description, so the posting read earlier in this tab fills the gaps. */
 async function readTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const [tab] = await chrome.tabs.query(
+    pageWindowId ? { active: true, windowId: pageWindowId } : { active: true, currentWindow: true },
+  )
   const changed = tab?.id !== state.tab?.id || tab?.url !== state.tab?.url
   state.tab = tab
   if (changed && !state.running) $("run-card").hidden = true
