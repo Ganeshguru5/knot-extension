@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "IamCandidate — Job & Referral Capture",
   "short_name": "IamCandidate",
-  "version": "1.2.0",
-  "description": "Save the job you're applying to and add referrals from LinkedIn profiles straight into your IamCandidate account.",
+  "version": "1.3.0",
+  "description": "Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details.",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Save to IamCandidate (Alt+K)",

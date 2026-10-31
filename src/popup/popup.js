@@ -6,14 +6,18 @@ import {
   RELATIONSHIPS,
   WORK_MODES,
 } from "../lib/constants.js"
+import { fillPage } from "../lib/autofill.js"
 import { extractPage } from "../lib/extract.js"
 import {
+  clearAutofill,
   clearDraft,
   clearSession,
+  getAutofill,
   getDraft,
   getLastApplicationId,
   getSession,
   getSettings,
+  saveAutofill,
   saveDraft,
   saveSettings,
   setLastApplicationId,
@@ -29,7 +33,7 @@ const state = {
   tab: undefined,
   /** Result of `extractPage` (or a stand-in for pages we can't read). */
   page: undefined,
-  /** "job" | "referral" */
+  /** "job" | "referral" | "autofill" */
   mode: "job",
   companies: [],
   contacts: [],
@@ -48,6 +52,7 @@ const state = {
 const $ = (id) => document.getElementById(id)
 const jobForm = $("job-form")
 const referralForm = $("referral-form")
+const autofillForm = $("autofill-form")
 
 const VIEWS = ["view-loading", "view-login", "view-settings", "view-main", "view-success", "view-message"]
 
@@ -208,7 +213,7 @@ async function start({ keepDraft = true, mode } = {}) {
   renderSiteChip()
   fillStaticOptions()
   populateJob()
-  await populateReferral()
+  await Promise.all([populateReferral(), populateAutofill()])
 
   const draft = keepDraft ? await getDraft(state.tab?.url) : undefined
   if (draft) {
@@ -577,6 +582,84 @@ async function saveReferral() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Autofill                                                            */
+/* ------------------------------------------------------------------ */
+
+const userKey = () => state.session?.user?.id ?? state.session?.user?.email
+
+/** Your saved details, or a first set from your IamCandidate profile. */
+async function populateAutofill() {
+  autofillForm.reset()
+  setAlert($("autofill-result"), "")
+  const saved = await getAutofill(userKey())
+  if (saved) return writeForm(autofillForm, saved)
+  const user = state.session?.user ?? {}
+  const profile = await api.getProfile().catch(() => ({}))
+  writeForm(autofillForm, {
+    fullName: profile.name || user.name || "",
+    email: profile.email || user.email || "",
+    location: profile.location ?? "",
+    currentTitle: profile.role ?? "",
+    summary: profile.bio ?? "",
+  })
+}
+
+let autofillTimer
+function scheduleAutofillSave() {
+  clearTimeout(autofillTimer)
+  autofillTimer = setTimeout(() => {
+    saveAutofill(userKey(), readForm(autofillForm)).catch(() => {})
+  }, 250)
+}
+
+async function fillCurrentPage() {
+  const details = readForm(autofillForm)
+  const errors = []
+  if (details.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email)) errors.push("email")
+  for (const name of ["linkedin", "github", "portfolio"]) {
+    if (details[name] && !isHttpUrl(details[name])) errors.push(name)
+  }
+  if (flagInvalid(autofillForm, errors)) return
+  setAlert($("autofill-result"), "")
+
+  clearTimeout(autofillTimer)
+  await saveAutofill(userKey(), details)
+
+  const tab = state.tab
+  if (!tab?.id || !isHttpUrl(tab.url)) {
+    return setAlert($("main-error"), "This page can't be filled by extensions.")
+  }
+  const button = $("btn-save")
+  setBusy(button, true, "Filling…")
+  try {
+    // Application forms are often embedded in an iframe (Greenhouse, Lever…);
+    // frames Chrome won't let us into are skipped.
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: fillPage,
+      args: [details],
+    })
+    const filled = results.flatMap((r) => r?.result?.filled ?? [])
+    if (!filled.length) {
+      return setAlert(
+        $("main-error"),
+        "No empty fields here matched your details. Open the application form and try again.",
+      )
+    }
+    const labels = filled.map((f) => f.label)
+    setAlert(
+      $("autofill-result"),
+      `Filled ${filled.length} field${filled.length === 1 ? "" : "s"} (outlined in green): ${labels.slice(0, 6).join(", ")}${labels.length > 6 ? "…" : ""}. Check them, add your resume, then submit the form yourself.`,
+    )
+  } catch (error) {
+    console.warn("IamCandidate: could not fill the page", error)
+    setAlert($("main-error"), "This page can't be filled by extensions.")
+  } finally {
+    setBusy(button, false)
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Shared                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -643,14 +726,25 @@ function setMode(mode) {
   state.mode = mode
   $("tab-job").setAttribute("aria-selected", String(mode === "job"))
   $("tab-referral").setAttribute("aria-selected", String(mode === "referral"))
+  $("tab-autofill").setAttribute("aria-selected", String(mode === "autofill"))
   jobForm.hidden = mode !== "job"
   referralForm.hidden = mode !== "referral"
-  $("btn-save").textContent = mode === "job" ? "Save application" : "Add referral"
+  autofillForm.hidden = mode !== "autofill"
+  $("btn-save").textContent =
+    mode === "job" ? "Save application" : mode === "referral" ? "Add referral" : "Fill this page"
   $("btn-message").hidden = mode !== "referral"
+  $("btn-reread").hidden = mode === "autofill"
   setAlert($("main-error"), "")
 
   const banner = $("detect-banner")
-  if (mode === "job") {
+  if (mode === "autofill") {
+    setAlert(
+      banner,
+      state.page.blocked
+        ? "This page can't be filled by extensions."
+        : "Open a job's application form, then fill in your details with one click.",
+    )
+  } else if (mode === "job") {
     setAlert(banner, jobBanner())
   } else if (state.page.kind === "profile") {
     const missing = ["name", "company"].filter((n) => !field(referralForm, n).value.trim())
@@ -690,6 +784,7 @@ function handleError(error) {
     show("view-main")
     jobForm.hidden = true
     referralForm.hidden = true
+    autofillForm.hidden = true
   }
   setAlert($("main-error"), message)
 }
@@ -910,7 +1005,7 @@ function wireEvents() {
   })
   $("btn-open-app").addEventListener("click", () => openApp("/dashboard"))
   $("btn-signout").addEventListener("click", async () => {
-    await Promise.all([clearSession(), clearDraft()])
+    await Promise.all([clearSession(), clearDraft(), clearAutofill()])
     showLogin()
   })
 
@@ -921,6 +1016,19 @@ function wireEvents() {
   $("tab-referral").addEventListener("click", () => {
     setMode("referral")
     scheduleDraftSave()
+  })
+  $("tab-autofill").addEventListener("click", () => {
+    setMode("autofill")
+    scheduleDraftSave()
+  })
+
+  autofillForm.addEventListener("submit", (event) => {
+    event.preventDefault()
+    $("btn-save").click()
+  })
+  autofillForm.addEventListener("input", (event) => {
+    event.target.closest(".field")?.classList.remove("invalid")
+    scheduleAutofillSave()
   })
 
   for (const form of [jobForm, referralForm]) {
@@ -942,7 +1050,9 @@ function wireEvents() {
     })
   }
 
-  $("btn-save").addEventListener("click", () => (state.mode === "job" ? saveJob() : saveReferral()))
+  $("btn-save").addEventListener("click", () =>
+    state.mode === "job" ? saveJob() : state.mode === "referral" ? saveReferral() : fillCurrentPage(),
+  )
   $("btn-reread").addEventListener("click", async () => {
     await clearDraft()
     start({ keepDraft: false, mode: state.mode })

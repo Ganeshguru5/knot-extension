@@ -18,6 +18,15 @@ someone's LinkedIn profile.
   of your IamCandidate LinkedIn templates (Templates → LinkedIn) with their first name, company, role and
   job link, shows the count against LinkedIn's 300-character connection-note limit, and copies
   it so you can paste it into LinkedIn. Copying for a saved referral also marks it "Request sent".
+- **Autofill:** on a job's application form, open the Autofill tab and click **Fill this page**.
+  It types your details (name, email, phone, location, LinkedIn/GitHub/portfolio links, current
+  title and company, experience, notice period, salary, summary, cover letter) into the matching
+  empty fields, including forms embedded in an iframe where Chrome allows it, and outlines each
+  filled field in green. It never overwrites what's already typed, never touches passwords, file
+  uploads, checkboxes or sign-in forms, and never submits: you attach your resume, check the form
+  and submit it yourself. Your details are pre-filled from your IamCandidate profile the first
+  time, saved on this device as you edit them, and removed when you sign out. Field matching is
+  in [src/lib/autofill.js](src/lib/autofill.js).
 - Companies and contacts are matched to what's already in IamCandidate, by company name and by
   LinkedIn URL (or exact name). New ones are created only when there's no match.
 - Your unsaved input is kept if the popup closes (for example when you click the page to
@@ -82,16 +91,18 @@ icons/               toolbar icons (IamCandidate brand mark)
 src/popup/           popup UI: sign-in, settings, job + referral forms
 src/lib/api.js       iamcandidate-server client (Bearer token, envelope unwrapping, 401 → sign-in)
 src/lib/extract.js   page reader, injected on demand with chrome.scripting
-src/lib/storage.js   settings and session (storage.local), drafts (storage.session)
+src/lib/autofill.js  application-form filler, injected on demand with chrome.scripting
+src/lib/storage.js   settings, session and autofill details (storage.local), drafts (storage.session)
 src/lib/constants.js status/work-mode/relationship options (same as the web app)
 ```
 
 ## Permissions
 
-- `activeTab` + `scripting`: read the page only when you open the extension on it. The
+- `activeTab` + `scripting`: read the page (or fill its application form, when you click
+  **Fill this page**) only when you open the extension on it. The
   extension doesn't run on pages in the background.
-- `storage`: settings, the session token (kept until you sign out, like the web app) and
-  drafts.
+- `storage`: settings, the session token (kept until you sign out, like the web app),
+  your autofill details and drafts.
 - The IamCandidate API host: signing in and saving your data.
 - `http://localhost/*`, `http://127.0.0.1/*` (optional): requested only if you point the
   extension at a local iamcandidate-server in Settings.

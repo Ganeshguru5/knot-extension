@@ -128,6 +128,7 @@ export const api = {
     }
   },
   me: () => send("GET", "/auth/me"),
+  getProfile: () => send("GET", "/settings/profile"),
 
   listCompanies: () => send("GET", "/companies"),
   createCompany: (input) => send("POST", "/companies", input),

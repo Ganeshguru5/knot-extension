@@ -1,14 +1,14 @@
 # Chrome Web Store listing — copy/paste values
 
 Developer account: ganeshguru8681@gmail.com
-Upload: `iamcandidate-extension-1.2.0.zip` (see the README's "Publishing" section)
+Upload: `iamcandidate-extension-1.3.0.zip` (see the README's "Publishing" section)
 
 ## Store listing tab
 
 **Name** (from manifest): IamCandidate — Job & Referral Capture
 
 **Summary** (from manifest description, max 132 chars):
-Save the job you're applying to and add referrals from LinkedIn profiles straight into your IamCandidate account.
+Save jobs and LinkedIn referrals to IamCandidate, and autofill application forms with your details.
 
 **Category:** Productivity → Tools
 **Language:** English
@@ -21,6 +21,8 @@ Track your job search without copy-pasting.
 While you're applying for a job, click the IamCandidate icon (or press Alt+K). The extension reads the job posting on the page (role, company, location, work mode, salary, job ID, link and description) and saves it to your IamCandidate account as an application. If it can't find something, it highlights the field so you can fill it in.
 
 On a LinkedIn profile, add that person as a referral in one click. Their name, headline, current company and profile link are filled in for you, and you can link the referral to a job you've already saved.
+
+Filling in the application itself? Open the Autofill tab and click Fill this page. Your name, contact details, links, current role, experience, notice period and salary go into the matching empty fields. Nothing is overwritten or submitted: you check the form and submit it yourself.
 
 • Works on popular job boards and most company career pages
 • Warns you when a job is already saved
@@ -37,22 +39,22 @@ Requires a IamCandidate account.
 ## Privacy tab
 
 **Single purpose:**
-Save job postings and LinkedIn referral contacts from the current page to the user's IamCandidate account.
+Help the user apply for jobs: save job postings and LinkedIn referral contacts from the current page to their IamCandidate account, and fill the application form on the page with their own details.
 
 **Permission justifications:**
 
 | Permission | Justification |
 | --- | --- |
-| `activeTab` | Gives access to the current tab only when the user opens the extension, so it can read the job posting or LinkedIn profile they're looking at. |
-| `scripting` | Runs the page reader in the current tab (only after the user opens the extension) to extract job or profile details into the form. |
-| `storage` | Stores the user's sign-in session, server settings and an unsaved form draft. |
+| `activeTab` | Gives access to the current tab only when the user opens the extension, so it can read the job posting or LinkedIn profile they're looking at, or fill the application form there when they click Fill this page. |
+| `scripting` | Runs the page reader in the current tab (only after the user opens the extension) to extract job or profile details into the form, and the form filler when the user clicks Fill this page. |
+| `storage` | Stores the user's sign-in session, server settings, the details they enter for autofill, and an unsaved form draft. |
 | Host permission `ps4y8f4z9f.execute-api.ap-south-1.amazonaws.com` | The IamCandidate API: signing in and saving applications, companies, contacts and referrals to the user's account. |
 | Optional host permission `localhost` | Only requested if the user points the extension at a IamCandidate server running on their own computer for development. |
 
 **Remote code:** No, I am not using remote code.
 
 **Data usage — tick:**
-- Personally identifiable information (the names and emails of contacts the user saves)
+- Personally identifiable information (the names and emails of contacts the user saves, and the user's own autofill details)
 - Authentication information (IamCandidate email, password and session token)
 - Website content (job posting and profile details the user chooses to save)
 

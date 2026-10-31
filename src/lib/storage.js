@@ -84,3 +84,20 @@ export async function getLastApplicationId() {
 export async function setLastApplicationId(id) {
   await chrome.storage.session.set({ [LAST_APPLICATION_KEY]: id })
 }
+
+const AUTOFILL_KEY = "iamcandidate:autofill"
+
+/** Your details for filling application forms, kept on this device for the
+ * signed-in user (`{ userId, details }`) until you sign out. */
+export async function getAutofill(userId) {
+  const { [AUTOFILL_KEY]: saved } = await chrome.storage.local.get(AUTOFILL_KEY)
+  return saved?.userId === userId ? saved.details : undefined
+}
+
+export async function saveAutofill(userId, details) {
+  await chrome.storage.local.set({ [AUTOFILL_KEY]: { userId, details } })
+}
+
+export async function clearAutofill() {
+  await chrome.storage.local.remove(AUTOFILL_KEY)
+}
